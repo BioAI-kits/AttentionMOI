@@ -1,7 +1,11 @@
-# import mygene
+import mygene
 import gzip
 import pandas as pd
-
+from sklearn import metrics
+from sklearn.metrics import confusion_matrix, f1_score
+import numpy as np
+import os
+import sys
 
 def pre_string(file, out_file='data.csv.gz'):
     """The function used to preprocess the file (9606.protein.links.full.v11.5.txt.gz) download from STRING database.
@@ -70,3 +74,49 @@ def clin_process_tsi(in_file, out_file, threshold=2):
     df_clin = df_clin[cols]
     df_clin = pd.concat([df_clin.iloc[:, :2],pd.get_dummies(df_clin.iloc[:, 2:])], axis=1)
     df_clin.to_csv(out_file, index=False)
+
+
+def evaluate(logits, real_labels):
+    """
+    logits (numpy.array, dim=2)
+    real_labels (numpy.array, dim=1)
+    
+    Return
+        acc, auc, f1_score_, sens, spec
+    """
+    # acc
+    pred = logits.argmax(axis=1)
+    acc = np.sum(pred == real_labels) / len(real_labels)
+    # matrix
+    TN, FP, FN, TP = confusion_matrix(y_true=real_labels, y_pred=pred).ravel()
+    # auc
+    fpr, tpr, thresholds = metrics.roc_curve(real_labels, logits[:,1], pos_label=1)
+    auc = metrics.auc(fpr, tpr)
+    # F1 score
+    f1_score_ = f1_score(y_true=real_labels, y_pred=pred)
+    # sens
+    sens = TP/float(TP+FN)
+    # spec
+    spec = TN/float(TN+FP)
+    return acc, auc, f1_score_, sens, spec
+
+
+def check_files(files):
+    """To check files.
+    files (str or list)
+    """
+    if isinstance (files,list):
+        for f in files:
+            if not os.path.exists(f):
+                print('[Error] {} not found.'.format(f))
+                sys.exit(1)
+    elif isinstance (files,str):
+        if not os.path.exists(files):
+                print('[Error] {} not found.'.format(files))
+                sys.exit(1)
+    else:
+        print('[Error] {} file path is wrong.'.format(files))
+        sys.exit(1)
+
+
+

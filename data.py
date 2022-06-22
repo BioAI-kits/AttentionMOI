@@ -74,6 +74,24 @@ def read_omics(omics_files=None, clin_file=None):
     return omics
     
 
+def read_pathways(id_mapping, file='./Pathway/pathway_genes.gmt'):
+    """To read pathway data (gmt format).
+    id_mapping (pandas, dataframe): return from build_graph function. It is used to changed gene id to node id.
+    file (str): pathways file.
+
+    Return:
+        pathways (dict): key <-- pathway name; value <-- nodes id, pandas array.
+    """
+    pathways = {}
+    with open(file) as F:
+        for line in F.readlines():
+            line = line.strip().split("\t")
+            genes = [int(i.strip()) for i in line[1:]]
+            nodes_id = id_mapping.loc[set(genes) & set(id_mapping.index.values), 'node_id'].values
+            pathways[line[0]] = nodes_id
+    return pathways
+
+
 def build_graph(omics, clinical_file):
     """To build graph, using multi-omics as nodes' attributes; using ppi as graph.
     Args:
@@ -86,9 +104,9 @@ def build_graph(omics, clinical_file):
     """ 
     # read ppi
     base_path = os.path.split(os.path.realpath(__file__))[0]
-    ppi_1 = os.path.join(base_path, 'data', 'PPI', 'ppi_1.csv.gz')
-    ppi_2 = os.path.join(base_path, 'data', 'PPI', 'ppi_2.csv.gz')
-    ppi_3 = os.path.join(base_path, 'data', 'PPI', 'ppi_3.csv.gz')
+    ppi_1 = os.path.join(base_path, 'PPI', 'ppi_1.csv.gz')
+    ppi_2 = os.path.join(base_path, 'PPI', 'ppi_2.csv.gz')
+    ppi_3 = os.path.join(base_path, 'PPI', 'ppi_3.csv.gz')
     df_ppi = pd.concat([pd.read_csv(ppi_1, compression='gzip'),
                         pd.read_csv(ppi_2, compression='gzip'),
                         pd.read_csv(ppi_3, compression='gzip')
@@ -149,59 +167,8 @@ def build_graph(omics, clinical_file):
         label = df_clin.label.values[i]
         labels.append(label)
     labels = torch.tensor(labels, dtype=torch.long)
-    return G, labels, clin_features
-    
-    
-class GraphOmics(DGLDataset):
-    """To create graphs with multi-omics.
 
-    Parameters
-    ----------
-    url : str
-    raw_dir : str
-    save_dir : str
-    force_reload : bool
-    verbose : bool
-    clin_file (str): clinical file name.
-    omics_fliles (list): omic file names.
-    """
-    def __init__(self,
-                 url=None,
-                 raw_dir=None,
-                 save_dir=None,
-                 force_reload=False,
-                 verbose=False,
-                 omics_files=None,
-                 clin_file=None
-                 ):
-        super(GraphOmics, self).__init__()
-        self.omics_files = omics_files
-        self.clin_file = clin_file
-
-    def download(self):
-        pass
-
-    def process(self):
-        omics = read_omics(omics_files=self.omics_files, clin_file=self.clin_file)
-        self.graphs, self.label, _ = build_graph(omics=omics, clinical_file=self.clin_file)
-
-    def __getitem__(self, idx):
-        return self.graphs[idx], self.label[idx]
-
-    def __len__(self):
-        return len(self.graphs)
-
-    def save(self):
-        # 将处理后的数据保存至 `self.save_path`
-        pass
-
-    def load(self):
-        # 从 `self.save_path` 导入处理后的数据
-        pass
-
-    def has_cache(self):
-        # 检查在 `self.save_path` 中是否存有处理后的数据
-        pass
+    return G, labels, clin_features, id_mapping
 
 
 def main():

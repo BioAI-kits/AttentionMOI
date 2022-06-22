@@ -7,7 +7,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import dgl
 import dgl.nn.pytorch as dglnn
-from data import GraphOmics
+from data import read_omics, read_clin, build_graph
+from util import evaluate, check_files
+
+np.random.seed(1234)
 
 
 class Classifier(nn.Module):
@@ -28,28 +31,88 @@ class Classifier(nn.Module):
             return self.classify(hg)
 
 
-def main():
-    omics_files = ['./data/GBM/GBM.cnv.csv.gz', 
-                   './data/GBM/GBM.expression.csv.gz', 
-                   './data/GBM/GBM.met.csv.gz']
-    clin_file= './data/GBM/clinincal.csv'
-    dataloader = GraphOmics(omics_fliles=omics_files, clin_file=clin_file)
+def batch_idx(graphs, minibatch=16):
+    """To obtain batch index.
+    graphs (list): the element is graph.
+    minibatch (int, default=8): graph number in each batch.
+
+    Return:
+        batch_idx (list): the element is list, i.e., index for each batch.
+    """
+
+    idx = list(range(len(graphs)))
+    np.random.shuffle(idx)
+    batch_idx, m = [], 0
+    while True:
+        if (m+1)*minibatch < len(graphs):
+            batch_idx.append(idx[m*minibatch:(m+1)*minibatch])
+        else:
+            batch_idx.append(idx[m*minibatch:])
+            break
+        m += 1
+    return batch_idx
+
+
+def main(omics_files, clin_file, minibatch=16, epoch=10):
+    print('[INFO] Reading dataset.')
+    omics = read_omics(omics_files=omics_files, clin_file= clin_file)
+    graphs, labels, clin_features, id_mapping = build_graph(omics=omics, clinical_file=clin_file)
+    graphs = np.array(graphs)
+
+    # init model
+    print('[INFO] Training model.')
     model = Classifier(in_dim=3, hidden_dim=8, n_classes=2)
     opt = torch.optim.Adam(model.parameters())
-
-    for epoch in range(20):
-        for batched_graph, labels in dataloader:
+    for epoch in range(10):
+        logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
+        for idx in batch_idx(graphs=graphs, minibatch=minibatch):            
+            batched_graph = dgl.batch(graphs[idx])
             feats = batched_graph.ndata['h']
+            # fill nan with 0
+            feats = torch.where(feats.isnan(), torch.full_like(feats, 0), feats)
+            batched_labels = labels[idx]
+
             logits = model(batched_graph, feats)
-            loss = F.cross_entropy(logits, labels)
+            loss = F.cross_entropy(logits, batched_labels)
             opt.zero_grad()
             loss.backward()
             opt.step()
-    print("Epoch: \n", epoch)
+            
+            logits_epoch.append(logits)
+            labels_epoch.append(batched_labels)
+            loss_epoch.append(loss.item())
 
-main()
+        # evaluation for training dataset
+        logits_epoch = torch.cat(logits_epoch, 0)
+        labels_epoch = torch.cat(labels_epoch, 0)
+        logits_epoch = logits_epoch.detach().numpy()
+        labels_epoch = labels_epoch.detach().numpy()
+        loss_epoch = np.mean(loss_epoch)
+        acc, auc, f1_score_, sens, spec = evaluate(logits=logits_epoch, real_labels=labels_epoch)
+        print('Epoch {:2d} | Loss {:.5f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}'.format(
+            epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
+            )
 
 
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
+    parser.add_argument('-c','--clin_file', help='clinical file.', required=True)
+    parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=8)
+    parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=10)
+    args = parser.parse_args()
+    
+    # check files exists
+    check_files(args.omic_file)
+    check_files(args.clin_file)
+
+    # Running main function
+    main(omics_files=args.omic_file, clin_file=args.clin_file, minibatch=args.batch, epoch=args.epoch)
+
+    
+    print("Finished!")
 
 
+#! TODO
+# add graph layers for model.
 
