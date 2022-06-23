@@ -1,5 +1,4 @@
-import sys
-import argparse
+import sys, os, argparse, warnings
 import numpy as np
 import pandas as pd
 import torch
@@ -7,28 +6,49 @@ import torch.nn as nn
 import torch.nn.functional as F
 import dgl
 import dgl.nn.pytorch as dglnn
-from data import read_omics, read_clin, build_graph
+from dgl.nn import SumPooling
+from data import read_omics, read_clin, build_graph, read_pathways
 from util import evaluate, check_files
 
 np.random.seed(1234)
 
 
-class Classifier(nn.Module):
-    def __init__(self, in_dim, hidden_dim, n_classes):
-        super(Classifier, self).__init__()
+class DeepMOI(nn.Module):
+    def __init__(self, in_dim, hidden_dim, n_classes, pathway):
+        super(DeepMOI, self).__init__()
         self.conv1 = dglnn.GraphConv(in_dim, hidden_dim)
         self.conv2 = dglnn.GraphConv(hidden_dim, hidden_dim)
-        self.classify = nn.Linear(hidden_dim, n_classes)
+        self.lin1 = nn.Linear(hidden_dim*2, 1)
+        self.lin2 = nn.Linear(len(pathway), 2)
+        self.pathway = pathway
 
     def forward(self, g, h):
-        # 应用图卷积和激活函数
+        # subnetwork1: GRL layers
         h = F.relu(self.conv1(g, h))
         h = F.relu(self.conv2(g, h))
+        # subnetwork2: patyway layers
         with g.local_scope():
             g.ndata['h'] = h
-            # 使用平均读出计算图表示
-            hg = dgl.mean_nodes(g, 'h')
-            return self.classify(hg)
+            # unbatch
+            g_unbatch = dgl.unbatch(g)
+            logits = []
+            for g in g_unbatch:
+                # global pooling 1
+                subgraphs = [dgl.node_subgraph(g, n) for n in self.pathway.values()]        
+                h_mean = [dgl.mean_nodes(g, 'h') for sg in subgraphs]
+                h_mean = torch.cat(h_mean)
+                # global pooling 2
+                sumpool = SumPooling()
+                h_sumpool = [sumpool(sg, sg.ndata['h']) for sg in subgraphs]
+                h_sumpool = torch.cat(h_sumpool)
+                # concat global pooling
+                h = torch.cat([h_mean, h_sumpool], 1)
+                # linear-1
+                h = self.lin1(h).squeeze(1)
+                # classification
+                logit = self.lin2(h)
+                logits.append(logit)
+            return torch.stack(logits, 0)
 
 
 def batch_idx(graphs, minibatch=16):
@@ -53,15 +73,22 @@ def batch_idx(graphs, minibatch=16):
     return batch_idx
 
 
-def main(omics_files, clin_file, minibatch=16, epoch=10):
+def main(omics_files, clin_file, minibatch=16, epoch=10, pathway_file='default'):
+    # warnings.filterwarnings('ignore')
     print('[INFO] Reading dataset.')
     omics = read_omics(omics_files=omics_files, clin_file= clin_file)
     graphs, labels, clin_features, id_mapping = build_graph(omics=omics, clinical_file=clin_file)
     graphs = np.array(graphs)
 
+    # read pathways
+    if pathway_file == 'default':
+        base_path = os.path.split(os.path.realpath(__file__))[0]
+        pathway_file = os.path.join(base_path, 'Pathway', 'pathway_genes.gmt')
+    pathways = read_pathways(id_mapping=id_mapping, file=pathway_file)
+
     # init model
     print('[INFO] Training model.')
-    model = Classifier(in_dim=3, hidden_dim=8, n_classes=2)
+    model = DeepMOI(in_dim=3, hidden_dim=8, n_classes=2, pathway=pathways)
     opt = torch.optim.Adam(model.parameters())
     for epoch in range(10):
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
@@ -99,7 +126,8 @@ if __name__ == "__main__":
     parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
     parser.add_argument('-c','--clin_file', help='clinical file.', required=True)
     parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=8)
-    parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=10)
+    parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=16)
+    parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')
     args = parser.parse_args()
     
     # check files exists
@@ -111,8 +139,4 @@ if __name__ == "__main__":
 
     
     print("Finished!")
-
-
-#! TODO
-# add graph layers for model.
 
