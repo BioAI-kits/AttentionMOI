@@ -16,8 +16,12 @@ np.random.seed(1234)
 class DeepMOI(nn.Module):
     def __init__(self, in_dim, hidden_dim, n_classes, pathway):
         super(DeepMOI, self).__init__()
-        self.conv1 = dglnn.GraphConv(in_dim, hidden_dim)
-        self.conv2 = dglnn.GraphConv(hidden_dim, hidden_dim)
+        self.gin_lin1 = torch.nn.Linear(in_dim, hidden_dim)
+        self.conv1 = dglnn.GINConv(self.gin_lin1, 'sum')
+
+        self.gin_lin2 = torch.nn.Linear(hidden_dim, hidden_dim)
+        self.conv2 = dglnn.GINConv(self.gin_lin2)
+        
         self.lin1 = nn.Linear(hidden_dim*2, 1)
         self.lin2 = nn.Linear(len(pathway), 2)
         self.pathway = pathway
@@ -44,9 +48,9 @@ class DeepMOI(nn.Module):
                 # concat global pooling
                 h = torch.cat([h_mean, h_sumpool], 1)
                 # linear-1
-                h = self.lin1(h).squeeze(1)
+                h = F.tanh(self.lin1(h).squeeze(1))
                 # classification
-                logit = self.lin2(h)
+                logit = F.softmax(self.lin2(h))
                 logits.append(logit)
             return torch.stack(logits, 0)
 
@@ -90,7 +94,7 @@ def main(omics_files, clin_file, minibatch=16, epoch=10, pathway_file='default')
     print('[INFO] Training model.')
     model = DeepMOI(in_dim=3, hidden_dim=8, n_classes=2, pathway=pathways)
     opt = torch.optim.Adam(model.parameters())
-    for epoch in range(10):
+    for epoch in range(200):
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
         for idx in batch_idx(graphs=graphs, minibatch=minibatch):            
             batched_graph = dgl.batch(graphs[idx])

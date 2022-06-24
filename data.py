@@ -156,12 +156,15 @@ def build_graph(omics, clinical_file):
     for i in range(multi_omics.shape[1]):
         # step1: build graphs
         g = dgl.graph((df_ppi.src.to_list(), df_ppi.dest.to_list()))
-        # add edge feature
-        score = torch.tensor(df_ppi.score.values) / 100
-        score = score.reshape(-1,1)
-        g.edata['e'] = score
-        # add node feature
-        g.ndata['h'] = multi_omics[:,i,:]
+        # add edge feature, scale to 0-1
+        e = torch.tensor(df_ppi.score.values)
+        e = e.reshape(-1,1)
+        e = (e - e.min()) / (e.max() - e.min())
+        g.edata['e'] = e
+        # add node feature, scale to 0-1
+        ndata = multi_omics[:,i,:]
+        ndata = (ndata - ndata.min()) /(ndata.max() - ndata.min())
+        g.ndata['h'] = ndata
         G.append(g)
         # step2: get labels
         label = df_clin.label.values[i]
@@ -169,13 +172,3 @@ def build_graph(omics, clinical_file):
     labels = torch.tensor(labels, dtype=torch.long)
 
     return G, labels, clin_features, id_mapping
-
-
-def main():
-    pass
-
-
-if __name__=='__main__':
-    
-    
-    main()
