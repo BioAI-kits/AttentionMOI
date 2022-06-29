@@ -78,19 +78,19 @@ def clin_process_tsi(in_file, out_file, threshold=2):
 
 def evaluate(logits, real_labels):
     """
-    logits (numpy.array, dim=2)
+    logits: sigmoid
     real_labels (numpy.array, dim=1)
     
     Return
         acc, auc, f1_score_, sens, spec
     """
     # acc
-    pred = logits.argmax(axis=1)
+    pred = [1 if i > 0.5 else 0 for i in logits]
     acc = np.sum(pred == real_labels) / len(real_labels)
     # matrix
     TN, FP, FN, TP = confusion_matrix(y_true=real_labels, y_pred=pred).ravel()
     # auc
-    fpr, tpr, thresholds = metrics.roc_curve(real_labels, logits[:,1], pos_label=1)
+    fpr, tpr, thresholds = metrics.roc_curve(real_labels, logits, pos_label=1)
     auc = metrics.auc(fpr, tpr)
     # F1 score
     f1_score_ = f1_score(y_true=real_labels, y_pred=pred)

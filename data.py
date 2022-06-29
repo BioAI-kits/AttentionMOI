@@ -46,6 +46,9 @@ def read_omics(omics_files=None, clin_file=None):
             df = pd.read_csv(file, compression='gzip')
             df = df.drop_duplicates('gene', keep='first')
             df = df.sort_values('gene').reset_index(drop=True)
+            df = df.fillna(0)  # fill nan with 0
+            # normalization by z-score
+            df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].mean()) / df.iloc[:, 1:].std()
             raw_omics.append(df)
             genes += df.gene.to_list()
             patients += df.columns.to_list()[1:]
@@ -142,12 +145,20 @@ def build_graph(omics, clinical_file):
     # read clinical file
     df_clin = read_clin(clinical_file)
     df_clin = df_clin[df_clin.patient_id.isin(omics_[0].columns[1:].values)].reset_index(drop=True)
-    clin_features = torch.tensor(df_clin.iloc[:, 2:].values).unsqueeze(2)  # clinical features, for i-th samples: clin_features[i]
+    ## if there are clinical features
+    if df_clin.shape[1]>3:
+        df_clin.iloc[:, 2:] = (df_clin.iloc[:, 2:] - df_clin.iloc[:, 2:].mean()) / df_clin.iloc[:, 2:].std()  # normalization by z-score
+        clin_features = torch.tensor(df_clin.iloc[:, 2:].values).unsqueeze(2)  # clinical features, for i-th samples: clin_features[i]
+        clin_features = torch.where(clin_features.isnan(), torch.full_like(clin_features, 0), clin_features)  # fill nan with 0
+    else:
+        clin_features = None
     
     # multi-omics features
     omics_tensor = []
     for omic in omics_:
-        omics_tensor.append(torch.tensor(omic.loc[:, df_clin.patient_id.values].values, dtype=torch.float32).unsqueeze(2))
+        omic_data = torch.tensor(omic.loc[:, df_clin.patient_id.values].values, dtype=torch.float32).unsqueeze(2)
+        omic_data = torch.where(omic_data.isnan(), torch.full_like(omic_data, 0), omic_data)  # fill nan with 0
+        omics_tensor.append(omic_data)
     multi_omics = torch.stack(omics_tensor, 2).squeeze(3)
     
     # build graphs
@@ -162,6 +173,7 @@ def build_graph(omics, clinical_file):
         e = (e - e.min()) / (e.max() - e.min())
         g.edata['e'] = e
         # add node feature, scale to 0-1
+
         ndata = multi_omics[:,i,:]
         ndata = (ndata - ndata.min()) /(ndata.max() - ndata.min())
         g.ndata['h'] = ndata
