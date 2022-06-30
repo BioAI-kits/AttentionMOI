@@ -26,7 +26,8 @@ class DeepMOI(nn.Module):
             self.lin2 = nn.Linear(len(pathway), 1)  # not including clinical features 
         else:
             clinical_feature_num = clinical_feature.shape[1]
-            self.lin2 = nn.Linear(len(pathway) + clinical_feature_num, 1)  # including clinical features
+            self.lin2 = nn.Linear(len(pathway) + clinical_feature_num, 128)  # including clinical features
+        self.lin3 = nn.Linear(128, 1)
         self.pathway = pathway
 
     def forward(self, g, h, c=None):
@@ -45,12 +46,15 @@ class DeepMOI(nn.Module):
             readout1 = readout1.reshape(1,-1).squeeze(0)
             
             # linear-1
-            x = nn.ReLU()(self.lin1(readout1))
+            x = nn.Tanh()(self.lin1(readout1))
             
             if c != None:
                 x = torch.cat([x, c], dim=0)
             
             # linear-2
-            logit = nn.Sigmoid()(self.lin2(x))
+            x = nn.ReLU()(self.lin2(x))
+
+            # linear-3
+            logit = nn.Sigmoid()(self.lin3(x))
 
             return logit

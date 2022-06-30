@@ -48,7 +48,8 @@ def read_omics(omics_files=None, clin_file=None):
             df = df.sort_values('gene').reset_index(drop=True)
             df = df.fillna(0)  # fill nan with 0
             # normalization by z-score
-            df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].mean()) / df.iloc[:, 1:].std()
+            # df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].mean()) / df.iloc[:, 1:].std()
+            df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].min()) / (df.iloc[:, 1:].max() - df.iloc[:, 1:].min())
             raw_omics.append(df)
             genes += df.gene.to_list()
             patients += df.columns.to_list()[1:]

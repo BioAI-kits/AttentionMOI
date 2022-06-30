@@ -63,21 +63,23 @@ def main(omics_files, clin_file, minibatch=16, epoch=10, pathway_file='default')
 
     # train model
     for epoch in range(200):
+        model.train()
         opt.zero_grad()
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
         for idx in batch_idx(graphs=graphs_train, minibatch=minibatch):
+            logits_batch = []
             # patients-wise
             for i in idx:
                 graph, label = graphs_train[i], lables_train[i].unsqueeze(0).float()
                 clinical_feature = clin_features_train[i].reshape(1,-1).squeeze(0).to(torch.float32)
                 logit = model(graph, graph.ndata['h'], clinical_feature)
-                loss = nn.BCELoss()(logit, label)
-                loss = loss/len(idx)  # loss regularization
-                loss.backward()
+                logits_batch.append(logit)
                 logits_epoch.append(logit.detach().numpy())
-                loss_epoch.append(loss.item())
+            # backward
+            loss = nn.BCELoss()(torch.cat(logits_batch), lables_train[idx].to(torch.float32))
+            loss.backward()
             opt.step()
-            opt.zero_grad()
+            loss_epoch.append(loss.item())
             labels_epoch += idx
 
         # evaluation for training dataset
@@ -85,15 +87,15 @@ def main(omics_files, clin_file, minibatch=16, epoch=10, pathway_file='default')
         labels_epoch = labels[labels_epoch].detach().numpy()
         loss_epoch = np.mean(loss_epoch)
         acc, auc, f1_score_, sens, spec = evaluate(logits=logits_epoch, real_labels=labels_epoch)
-        print('Epoch {:2d} | Loss {:.5f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}'.format(
+        print('Epoch {:2d} | Loss {:.10f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}'.format(
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
             )
         with open('log.txt', 'a') as F:
-            F.writelines('Epoch {:2d} | Loss {:.5f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}\n'.format(
+            F.writelines('Epoch {:2d} | Loss {:.10f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}\n'.format(
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
         # evaluation for testing dataset
-        if epoch > 3:
+        if epoch > 100:
             model.eval()
             logits = []
             for i in range(len(graphs_test)):
@@ -119,8 +121,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
     parser.add_argument('-c','--clin_file', help='clinical file.', required=True)
-    parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=8)
-    parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=16)
+    parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=16)
+    parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=10)
     parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')
     args = parser.parse_args()
     
