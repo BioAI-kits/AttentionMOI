@@ -19,6 +19,11 @@ class DeepMOI(nn.Module):
 
         self.gin_lin2 = torch.nn.Linear(in_dim*2, in_dim)
         self.conv2 = dglnn.GINConv(self.gin_lin2)
+
+        # GlobalPooling
+        self.sns1 = Set2Set(3, 2, 1)
+        self.sns2 = Set2Set(3, 2, 1)
+        self.sns3 = Set2Set(3, 2, 1)
         
         # MLP
         self.lin1 = nn.Linear(len(pathway)*in_dim*2, len(pathway))
@@ -29,6 +34,8 @@ class DeepMOI(nn.Module):
             self.lin2 = nn.Linear(len(pathway) + clinical_feature_num, 128)  # including clinical features
         self.lin3 = nn.Linear(128, 1)
         self.pathway = pathway
+
+        
 
     def forward(self, g, h, c=None):
         # subnetwork1: GRL layers
@@ -42,8 +49,12 @@ class DeepMOI(nn.Module):
             # global pooling with Set2Set: output dim = 2*node_dim
             subgraphs = [dgl.node_subgraph(g, n) for n in self.pathway.values()]
             graphs_ = dgl.batch(subgraphs)
-            readout1 =  Set2Set(3, 2, 1)(graphs_, graphs_.ndata['h'])
+            readout1 =  self.sns1(graphs_, graphs_.ndata['h'])
             readout1 = readout1.reshape(1,-1).squeeze(0)
+            readout2 =  self.sns2(graphs_, graphs_.ndata['h'])
+            readout2 = readout2.reshape(1,-1).squeeze(0)
+            readout3 =  self.sns3(graphs_, graphs_.ndata['h'])
+            readout3 = readout3.reshape(1,-1).squeeze(0)
             
             # linear-1
             x = nn.Tanh()(self.lin1(readout1))
