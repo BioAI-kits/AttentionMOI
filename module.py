@@ -7,60 +7,72 @@ from dgl.nn import Set2Set
 
 
 class DeepMOI(nn.Module):
-    def __init__(self, in_dim, pathway, clinical_feature=None):
+    def __init__(self, in_dim, pathway, add_features=None):
         """
         in_dim: == omics' number
         hidden_dim: == 
         """
         super(DeepMOI, self).__init__()
-        # GNN
+        
+        hidden_dim1 = 256
+        hidden_dim2 = 64
+        
+        # GNN-1
         self.gin_lin1 = torch.nn.Linear(in_dim, in_dim*2)
         self.conv1 = dglnn.GINConv(self.gin_lin1, 'sum')
-
+        
+        # GNN-2
         self.gin_lin2 = torch.nn.Linear(in_dim*2, in_dim)
         self.conv2 = dglnn.GINConv(self.gin_lin2)
 
         # GlobalPooling
-        self.sns1 = Set2Set(3, 2, 1)
-        self.sns2 = Set2Set(3, 2, 1)
-        self.sns3 = Set2Set(3, 2, 1)
+        self.sns1 = Set2Set(in_dim, 2, 1)
+        self.sns2 = Set2Set(in_dim, 2, 1)
+        self.sns3 = Set2Set(in_dim, 2, 1)
+        self.ln_gpool = nn.Linear(in_dim*2*3, 1)
         
         # MLP
-        self.lin1 = nn.Linear(len(pathway)*in_dim*2, len(pathway))
-        if clinical_feature == None:
-            self.lin2 = nn.Linear(len(pathway), 1)  # not including clinical features 
+        if add_features == None:
+            self.lin1 = nn.Linear(len(pathway), hidden_dim1)  # not including clinical features 
         else:
-            clinical_feature_num = clinical_feature.shape[1]
-            self.lin2 = nn.Linear(len(pathway) + clinical_feature_num, 128)  # including clinical features
-        self.lin3 = nn.Linear(128, 1)
+            add_num = add_features.shape[1]
+            self.lin1 = nn.Linear(len(pathway) + add_num, hidden_dim1)  # including clinical features    
+        self.lin2 = nn.Linear(hidden_dim1, hidden_dim2)
+        self.lin3 = nn.Linear(hidden_dim2, 1)
+        
+        # other args
         self.pathway = pathway
 
-        
 
     def forward(self, g, h, c=None):
+        
         # subnetwork1: GRL layers
         h = F.relu(self.conv1(g, h))
         h = F.relu(self.conv2(g, h))
-
         # subnetwork2: patyway layers
         with g.local_scope():
             g.ndata['h'] = h
-
             # global pooling with Set2Set: output dim = 2*node_dim
             subgraphs = [dgl.node_subgraph(g, n) for n in self.pathway.values()]
             graphs_ = dgl.batch(subgraphs)
             readout1 =  self.sns1(graphs_, graphs_.ndata['h'])
-            readout1 = readout1.reshape(1,-1).squeeze(0)
             readout2 =  self.sns2(graphs_, graphs_.ndata['h'])
-            readout2 = readout2.reshape(1,-1).squeeze(0)
             readout3 =  self.sns3(graphs_, graphs_.ndata['h'])
-            readout3 = readout3.reshape(1,-1).squeeze(0)
+            readout = torch.stack([readout1, readout2, readout3], dim=1)
+            readout = readout.reshape(readout.shape[0], -1)
             
-            # linear-1
-            x = nn.Tanh()(self.lin1(readout1))
+            # compute pathway score
+            x = self.ln_gpool(readout)
             
+            # additional features
             if c != None:
                 x = torch.cat([x, c], dim=0)
+            
+            # reshape
+            x = x.reshape(1,-1)  # add features
+            
+            # linear-1
+            x = nn.Tanh()(self.lin1(x))
             
             # linear-2
             x = nn.ReLU()(self.lin2(x))

@@ -1,15 +1,11 @@
 import sys, os, argparse, warnings
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-import dgl
-import dgl.nn.pytorch as dglnn
-from dgl.nn import Set2Set, SumPooling
-from data import read_omics, read_clin, build_graph, read_pathways
-from util import evaluate, check_files
+from data import *
+from util import *
 from module import DeepMOI
 
 
@@ -39,7 +35,7 @@ def batch_idx(train_idx, minibatch):
 def data_split(labels, test_size):
     """To split dataset into training dataset and testing dataset.
     Args:
-        labels (tensor): The labels of samples.
+        labels (numpy): The labels of samples.
         test_size (float, 0-1): The proportion of test data.
     
     Return:
@@ -52,14 +48,28 @@ def data_split(labels, test_size):
 
 
 
-def train(omics_files, clin_file, test_size, pathway_file='default', minibatch=16, epoch=10, lr=0.001):
-    # read dataset
-    print('[INFO] Reading dataset. There are {} omics data in total.'.format(len(omics_files)))
-    omics = read_omics(omics_files=omics_files, clin_file= clin_file)
-    graph, labels, clin_features, id_mapping = build_graph(omics=omics, clinical_file=clin_file)
+def train(omics_files, label_file, add_file, test_size, pathway_file, network_file, minibatch, epoch, lr):
+    """ To train DeepMOI model.
 
-    # split dataset
-    train_idx, test_idx = data_split(labels=labels, test_size=test_size)
+    Args:
+        omics_files (list, required):   omic filenames.
+        label_file (str, required) :    label filename.
+        add_file (str, optional) :      additional features' filename.
+        test_size (float, 0-1):         proportion of testing dataset.
+        pathway_file (str):             pathway filename.
+        network_file (str):             network filename.
+        minibatch (int):                minibatch size.
+        epoch (int):                    epoch number.
+        lr (float):                     learning rate.
+
+    Returns:
+
+    """
+    # read dataset
+    print('[INFO] Reading dataset. There are {} omics data in total.\n'.format(len(omics_files)))
+    omics = read_omics(omics_files=omics_files, label_file=label_file, add_file=add_file)
+    graph, labels, add_features, id_mapping = build_graph(omics=omics, label_file=label_file, add_file=add_file, network_file=network_file)
+    omic_features = graph.ndata['h']
 
     # read pathway
     if pathway_file == 'default':
@@ -67,9 +77,12 @@ def train(omics_files, clin_file, test_size, pathway_file='default', minibatch=1
         pathway_file = os.path.join(base_path, 'Pathway', 'pathway_genes.gmt')
     pathways = read_pathways(id_mapping=id_mapping, file=pathway_file)
 
+    # split dataset
+    train_idx, test_idx = data_split(labels=labels, test_size=test_size)
+
     # init model
-    print('[INFO] Training model.')
-    model = DeepMOI(in_dim=len(omics_files), pathway=pathways, clinical_feature=clin_features)
+    print('[INFO] Training model.\n')
+    model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     # train model
@@ -81,44 +94,24 @@ def train(omics_files, clin_file, test_size, pathway_file='default', minibatch=1
             logits_batch = []
             # patients-wise
             for i in idx:
-                
-                logit = model(g=graph, h=graph.ndata['h'][:, i, :], a=)
-
-
-
-
-
-
-
-    # graphs_train, graphs_test, lables_train, labels_test, clin_features_train, clin_features_test = train_test_split(graphs, labels, clin_features, test_size=0.2, random_state=42)
-    graphs_train = np.array(graphs_train)
-    graphs_test = np.array(graphs_test)
-
-    
-    # train model
-    for epoch in range(200):
-        model.train()
-        opt.zero_grad()
-        logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
-        for idx in batch_idx(graphs=graphs_train, minibatch=minibatch):
-            logits_batch = []
-            # patients-wise
-            for i in idx:
-                graph, label = graphs_train[i], lables_train[i].unsqueeze(0).float()
-                clinical_feature = clin_features_train[i].reshape(1,-1).squeeze(0).to(torch.float32)
-                logit = model(graph, graph.ndata['h'], clinical_feature)
+                print('idx:', i)
+                if add_features != None:
+                    logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
+                else:
+                    logit = model(g=graph, h=omic_features[:, i, :], c=None)
                 logits_batch.append(logit)
                 logits_epoch.append(logit.detach().numpy())
             # backward
-            loss = nn.BCELoss()(torch.cat(logits_batch), lables_train[idx].to(torch.float32))
+            print(torch.cat(logits_batch), torch.tensor(labels[idx], dtype=torch.float32))
+            loss = nn.BCELoss()(torch.cat(logits_batch), torch.tensor(labels[idx], dtype=torch.float32).reshape(-1,1))
             loss.backward()
-            opt.step()
+            optimizer.step()
             loss_epoch.append(loss.item())
             labels_epoch += idx
-
+        
         # evaluation for training dataset
         logits_epoch = np.concatenate(logits_epoch)
-        labels_epoch = labels[labels_epoch].detach().numpy()
+        labels_epoch = labels[train_idx]
         loss_epoch = np.mean(loss_epoch)
         acc, auc, f1_score_, sens, spec = evaluate(logits=logits_epoch, real_labels=labels_epoch)
         print('Epoch {:2d} | Loss {:.10f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}'.format(
@@ -129,16 +122,18 @@ def train(omics_files, clin_file, test_size, pathway_file='default', minibatch=1
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
         # evaluation for testing dataset
-        if epoch > 100:
+        if epoch > 3:
             model.eval()
             logits = []
-            for i in range(len(graphs_test)):
-                g = graphs_test[i]
-                c = clin_features_test[i].reshape(1,-1).squeeze(0).to(torch.float32)
-                logit = model(g, g.ndata['h'], c)
+            for i in test_idx:
+                print('idx:', i)
+                if add_features != None:
+                    logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
+                else:
+                    logit = model(g=graph, h=omic_features[:, i, :], c=None)
                 logits.append(logit.detach().numpy())
             logits = np.concatenate(logits)
-            acc, auc, f1_score_, sens, spec = evaluate(logits, labels_test.detach().numpy())
+            acc, auc, f1_score_, sens, spec = evaluate(logits, labels[test_idx])
             print('Test_Epoch {:2d} | Test_Loss {:.5f} | Test_Acc {:.3f} | Test_AUC {:.3f} | Test_F1_score {:.3f} | Test_Sens {:.3f} | Test_Spec {:.3f}'.format(
                     epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
                     )
@@ -154,20 +149,32 @@ def train(omics_files, clin_file, test_size, pathway_file='default', minibatch=1
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
-    parser.add_argument('-c','--clin', help='clinical file.', required=True)
-    parser.add_argument('-l','--label', help='label file', required=True)
+    parser.add_argument('-l','--label_file', help='label file', required=True)
+    parser.add_argument('-a','--additional_features', default=None, help='Non-omic features')
+    parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')
+    parser.add_argument('-n','--network', help='The network file that should be gmt format.', type=str, default='default')
     parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=16)
     parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=10)
-    parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')
+    parser.add_argument('-r','--lr', help='learning reate.', type=float, default=0.001)
     args = parser.parse_args()
     
-    # check files exists
+    print(args.omic_file)
+    # # check files exists
     check_files(args.omic_file)
-    check_files(args.clin_file)
+    check_files(args.label_file)
 
-    # Running main function
-    main(omics_files=args.omic_file, clin_file=args.clin_file, minibatch=args.batch, epoch=args.epoch)
+    # # Running main function
+    train(omics_files=args.omic_file, 
+          label_file=args.label_file, 
+          add_file=args.additional_features,
+          test_size=0.2,
+          pathway_file=args.pathway,
+          network_file=args.network,
+          minibatch=args.batch, 
+          epoch=args.epoch,
+          lr=args.lr 
+          )
 
     
-    print("[INFO] DeepMOI has finished running!")
+    # print("[INFO] DeepMOI has finished running!")
 

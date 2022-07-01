@@ -25,7 +25,6 @@ def batch_idx(graphs, minibatch=16):
     Return:
         batch_idx (list): the element is list, i.e., index for each batch.
     """
-
     idx = list(range(len(graphs)))
     np.random.shuffle(idx)
     batch_idx, m = [], 0
@@ -120,7 +119,8 @@ def main(omics_files, clin_file, minibatch=16, epoch=10, pathway_file='default')
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
-    parser.add_argument('-c','--clin_file', help='clinical file.', required=True)
+    parser.add_argument('-c','--clin', help='clinical file.', required=True)
+    parser.add_argument('-l','--label', help='label file', required=True)
     parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=16)
     parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=10)
     parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')

@@ -192,7 +192,7 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
     
     # obtain overlapping genes between ppi and omics
     genes = set(df_ppi.src.to_list() + df_ppi.dest.to_list()) & set(omics[0].gene.to_list())  
-    print('\n[INFO] The overlaping genes number between omics and ppi dataset is: {}'.format(len(genes)))
+    print('[INFO] The overlaping genes number between omics and ppi dataset is: {}'.format(len(genes)))
     
     # only keep overlapping genes for ppi
     df_ppi = df_ppi[(df_ppi.src.isin(genes)) & ((df_ppi.dest.isin(genes)))].reset_index(drop=True)
@@ -227,7 +227,7 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
         df_add = df_add[df_add.patient.isin(omics_[0].columns[1:].values)].reset_index(drop=True)
         # df_add.iloc[:, 1:] = (df_add.iloc[:, 1:] - df_add.iloc[:, 1:].mean()) / df_add.iloc[:, 1:].std()  # normalization by z-score
         df_add.iloc[:, 1:] = (df_add.iloc[:, 1:] - df_add.iloc[:, 1:].min()) / (df_add.iloc[:, 1:].max() - df_add.iloc[:, 1:].min())  # normalization by scale
-        add_features = torch.tensor(df_add.iloc[:, 1:].values).unsqueeze(2)  # clinical features, for i-th samples: clin_features[i]
+        add_features = torch.tensor(df_add.iloc[:, 1:].values, dtype=torch.float32).unsqueeze(2)  # clinical features, for i-th samples: clin_features[i]
         add_features = torch.where(add_features.isnan(), torch.full_like(add_features, 0), add_features)  # fill nan with 0
     else:
         add_features = None
@@ -243,14 +243,14 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
     # build graph
     g = dgl.graph((df_ppi.src.to_list(), df_ppi.dest.to_list()))
     # add edge feature, scale to 0-1
-    # e = torch.tensor(df_ppi.score.values)
-    # e = e.reshape(-1,1)
-    # e = (e - e.min()) / (e.max() - e.min())
-    # g.edata['e'] = e
+    e = torch.tensor(df_ppi.score.values)
+    e = e.reshape(-1,1)
+    e = (e - e.min()) / (e.max() - e.min())
+    g.edata['e'] = e
     # add node features
     g.ndata['h'] = multi_omics
 
-    labels = torch.tensor(df_label.label.values, dtype=torch.long)
+    labels = df_label.label.values
 
     return g, labels, add_features, id_mapping
 
