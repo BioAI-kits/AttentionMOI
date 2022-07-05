@@ -98,7 +98,7 @@ def read_omics(omics_files, label_file, add_file=None):
             df = df.sort_values('gene').reset_index(drop=True)
             df = df.fillna(0)  # fill nan with 0
             # df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].mean()) / df.iloc[:, 1:].std()  # normalization by z-score
-            df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].min()) / (df.iloc[:, 1:].max() - df.iloc[:, 1:].min())  # normalization by scale
+            # df.iloc[:, 1:] = (df.iloc[:, 1:] - df.iloc[:, 1:].min()) / (df.iloc[:, 1:].max() - df.iloc[:, 1:].min())  # normalization by scale
 
             # post-process
             raw_omics.append(df)
@@ -192,7 +192,7 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
     
     # obtain overlapping genes between ppi and omics
     genes = set(df_ppi.src.to_list() + df_ppi.dest.to_list()) & set(omics[0].gene.to_list())  
-    print('[INFO] The overlaping genes number between omics and ppi dataset is: {}'.format(len(genes)))
+    print('[INFO] The overlaping genes number between omics and ppi dataset is: {}\n'.format(len(genes)))
     
     # only keep overlapping genes for ppi
     df_ppi = df_ppi[(df_ppi.src.isin(genes)) & ((df_ppi.dest.isin(genes)))].reset_index(drop=True)
@@ -226,7 +226,7 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
         df_add = read_additional_file(add_file)
         df_add = df_add[df_add.patient.isin(omics_[0].columns[1:].values)].reset_index(drop=True)
         # df_add.iloc[:, 1:] = (df_add.iloc[:, 1:] - df_add.iloc[:, 1:].mean()) / df_add.iloc[:, 1:].std()  # normalization by z-score
-        df_add.iloc[:, 1:] = (df_add.iloc[:, 1:] - df_add.iloc[:, 1:].min()) / (df_add.iloc[:, 1:].max() - df_add.iloc[:, 1:].min())  # normalization by scale
+        # df_add.iloc[:, 1:] = (df_add.iloc[:, 1:] - df_add.iloc[:, 1:].min()) / (df_add.iloc[:, 1:].max() - df_add.iloc[:, 1:].min())  # normalization by scale
         add_features = torch.tensor(df_add.iloc[:, 1:].values, dtype=torch.float32).unsqueeze(2)  # clinical features, for i-th samples: clin_features[i]
         add_features = torch.where(add_features.isnan(), torch.full_like(add_features, 0), add_features)  # fill nan with 0
     else:

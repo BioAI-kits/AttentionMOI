@@ -47,7 +47,7 @@ def data_split(labels, test_size):
     return idx[test_number:], idx[:test_number]
 
 
-def train(omics_files, label_file, add_file, test_size, pathway_file, network_file, minibatch, epoch, lr):
+def train(omics_files, label_file, add_file, test_size, pathway_file, network_file, minibatch, epoch, lr, outdir):
     """ To train DeepMOI model.
 
     Args:
@@ -60,7 +60,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
         minibatch (int):                minibatch size.
         epoch (int):                    epoch number.
         lr (float):                     learning rate.
-
+        outdir (path):                  output dir.
     Returns:
 
     """
@@ -82,11 +82,25 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     # init model
     print('[INFO] Start training model:')
     model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.001)
 
     # train model
     for epoch in range(epoch):
         model.train()
+
+        # 
+        if epoch < 50:
+            for k,v in model.named_parameters():
+                if k.startswith('lin'):
+                    v.requires_grad = False
+        else:
+            for k,v in model.named_parameters():
+                if  k.startswith('lin'):
+                    v.requires_grad = True
+                else:
+                    v.requires_grad = False
+
+
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
         for idx in batch_idx(train_idx=train_idx, minibatch=minibatch):
             logits_batch = []
@@ -111,10 +125,10 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
         labels_epoch = labels[train_idx]
         loss_epoch = np.mean(loss_epoch)
         acc, auc, f1_score_, sens, spec = evaluate(logits=logits_epoch, real_labels=labels_epoch)
-        print('Epoch {:2d} | Loss {:.10f} | Acc {:.3f} | AUC {:.3f} | F1_score {:.3f} | Sens {:.3f} | Spec {:.3f}'.format(
+        print('Epoch {:2d} | Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Sens {:.3f} | Train_Spec {:.3f}'.format(
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
             )
-        with open('log.txt', 'a') as F:
+        with open(os.path.join(outdir,'log.txt'), 'a') as F:
             F.writelines('Epoch {:2d} | Train_Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Sens {:.3f} | Train_Spec {:.3f}\n'.format(
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
@@ -139,4 +153,4 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
         
         # save model
         if epoch % 10 == 0:
-            torch.save(model, './model/DeepMOI_{}.pt'.format(epoch))
+            torch.save(model, os.path.join(outdir,'DeepMOI_{}.pt'.format(epoch)))

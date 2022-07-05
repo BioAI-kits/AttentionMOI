@@ -1,1 +1,1 @@
-python main.py -f ./data/GBM/GBM.cnv.csv.gz -f ./data/GBM/GBM.expression.csv.gz -f ./data/GBM/GBM.met.csv.gz -c ./data/GBM/clinincal.csv
+python train.py -f ./data/LGG/rna.csv.gz -f ./data/LGG/met.csv.gz -l ./data/LGG/label.csv -a ./data/LGG/mirna.csv.gz --lr 0.0001 -b 16 -e 200

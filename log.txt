@@ -1,1 +1,4 @@
-
+Epoch  6 | Test_Loss  0.7069454038 | Test_ACC  0.516 | Test_AUC  0.538 | Test_F1_score  0.681 | Test_Sens  1.000 | Test_Spec  0.000
+Epoch  6 | Test_Loss  0.7020808458 | Test_ACC  0.523 | Test_AUC  0.450 | Test_F1_score  0.684 | Test_Sens  1.000 | Test_Spec  0.014
+Epoch  7 | Test_Loss  0.6960539066 | Test_ACC  0.510 | Test_AUC  0.503 | Test_F1_score  0.675 | Test_Sens  0.987 | Test_Spec  0.000
+Epoch  8 | Test_Loss  0.7016505133 | Test_ACC  0.523 | Test_AUC  0.536 | Test_F1_score  0.684 | Test_Sens  1.000 | Test_Spec  0.014
