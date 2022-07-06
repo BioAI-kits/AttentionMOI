@@ -33,7 +33,7 @@ if __name__ == "__main__":
     check_files(args.omic_file)
     check_files(args.label_file)
 
-    # make documents
+    # make documents  
     if not os.path.exists(args.outdir):
         os.makedirs(args.outdir)
 
