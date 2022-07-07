@@ -47,7 +47,7 @@ def data_split(labels, test_size):
     return idx[test_number:], idx[:test_number]
 
 
-def train(omics_files, label_file, add_file, test_size, pathway_file, network_file, minibatch, epoch, lr, outdir):
+def train(omics_files, label_file, add_file, test_size, pathway_file, network_file, minibatch, epoch, lr, outdir, device='cpu'):
     """ To train DeepMOI model.
 
     Args:
@@ -69,7 +69,13 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     omics = read_omics(omics_files=omics_files, label_file=label_file, add_file=add_file)
     graph, labels, add_features, id_mapping = build_graph(omics=omics, label_file=label_file, add_file=add_file, network_file=network_file)
     omic_features = graph.ndata['h']
-
+    
+    # to device
+    graph = graph.to(device)
+    omic_features = omic_features.to(device)
+    if add_features != None:
+        add_features = add_features.to(device)
+    
     # read pathway
     if pathway_file == 'default':
         base_path = os.path.split(os.path.realpath(__file__))[0]
@@ -81,25 +87,24 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
 
     # init model
     print('[INFO] Start training model:')
-    model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.001)
+    model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features).to(device=device)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.003)
 
     # train model
     for epoch in range(epoch):
         model.train()
 
-        # 
-        if epoch < 50:
-            for k,v in model.named_parameters():
-                if k.startswith('lin'):
-                    v.requires_grad = False
-        else:
-            for k,v in model.named_parameters():
-                if  k.startswith('lin'):
-                    v.requires_grad = True
-                else:
-                    v.requires_grad = False
-
+        # # 
+        # if epoch < 50:
+        #     for k,v in model.named_parameters():
+        #         if k.startswith('lin'):
+        #             v.requires_grad = False
+        # else:
+        #     for k,v in model.named_parameters():
+        #         if  k.startswith('lin'):
+        #             v.requires_grad = True
+        #         else:
+        #             v.requires_grad = False
 
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
         for idx in batch_idx(train_idx=train_idx, minibatch=minibatch):
@@ -111,9 +116,9 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
                 else:
                     logit = model(g=graph, h=omic_features[:, i, :], c=None)
                 logits_batch.append(logit)
-                logits_epoch.append(logit.detach().numpy())
+                logits_epoch.append(logit.to(device='cpu').detach().numpy())
             # backward
-            loss = nn.BCELoss()(torch.cat(logits_batch), torch.tensor(labels[idx], dtype=torch.float32).reshape(-1,1))
+            loss = nn.BCELoss()(torch.cat(logits_batch), torch.tensor(labels[idx], dtype=torch.float32, device=device).reshape(-1,1))
             loss.backward()
             optimizer.step()
             optimizer.zero_grad()
@@ -125,7 +130,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
         labels_epoch = labels[train_idx]
         loss_epoch = np.mean(loss_epoch)
         acc, auc, f1_score_, sens, spec = evaluate(logits=logits_epoch, real_labels=labels_epoch)
-        print('Epoch {:2d} | Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Sens {:.3f} | Train_Spec {:.3f}'.format(
+        print('Epoch {:2d} | Train_Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Sens {:.3f} | Train_Spec {:.3f}'.format(
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
             )
         with open(os.path.join(outdir,'log.txt'), 'a') as F:
