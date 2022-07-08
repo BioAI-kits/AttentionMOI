@@ -6,7 +6,9 @@ import dgl.nn.pytorch as dglnn
 # from dgl.nn import Set2Set
 
 from torch_geometric.nn import SAGEConv, SAGPooling, Set2Set, GraphNorm, global_sort_pool, GlobalAttention
-from torch_geometric.utils import add_self_loops
+from torch_geometric.utils import add_self_loops, subgraph
+from torch_geometric.loader import DataLoader
+from torch_geometric.data import Data
 
 # class DeepMOI(nn.Module):
 #     def __init__(self, in_dim, pathway, add_features=None):
@@ -88,6 +90,66 @@ from torch_geometric.utils import add_self_loops
 #             return logit
 
 
+# class DeepMOI(nn.Module):
+#     def __init__(self, in_dim, pathway, add_features=None):
+#         """
+#         in_dim: == omics' number
+#         hidden_dim: == 
+#         """
+#         super(DeepMOI, self).__init__()
+#         # GNN-1
+#         self.conv1 = SAGEConv(in_dim, in_dim*8)
+#         self.pool1 = SAGPooling(in_dim*8, ratio=0.8)
+#         self.readout1 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+#         # GNN-2
+#         self.conv2 = SAGEConv(in_dim*8, in_dim*8)
+#         self.pool2 = SAGPooling(in_dim*8, ratio=0.8)
+#         self.readout2 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+#         # GNN-3
+#         self.conv3 = SAGEConv(in_dim*8, in_dim*8)
+#         self.pool3 = SAGPooling(in_dim*8, ratio=0.8)
+#         self.readout3 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+#         # MLP
+#         self.mlp = nn.Sequential(
+#                                  nn.Linear(in_dim*8*3, 48),
+#                                  nn.Tanh(),
+#                                  nn.Dropout(p=0.4),
+#                                  nn.Linear(48, 16),
+#                                  nn.Tanh(),
+#                                  nn.Linear(16,1),
+#                                  nn.Sigmoid()
+#                                 )
+#         self.norm = GraphNorm(in_dim*8)
+    
+#     def forward(self, g, h, c=None):
+#         edge_index = g.edge_index
+#         edge_index,_ = add_self_loops(edge_index=edge_index)
+#         x = h
+#         # GNN-1
+#         x = torch.tanh(self.conv1(x, edge_index))
+#         x, edge_index, _, _, _, _ = self.pool1(x, edge_index, None, None)
+#         x1 = self.readout1(x, None)
+
+#         # GNN-2
+#         x = self.norm(x)
+#         x = torch.tanh(self.conv2(x, edge_index))
+#         x, edge_index, _, _, _, _ = self.pool2(x, edge_index, None, None)
+#         x2 = self.readout2(x)
+
+#         # GNN-3
+#         x = self.norm(x)
+#         x = torch.tanh(self.conv3(x, edge_index))
+#         x, edge_index, _, _, _, _ = self.pool3(x, edge_index, None, None)
+#         x3 = self.readout3(x)
+
+#         # concat readout
+#         readout = torch.cat([x1, x2, x3], dim=1)
+
+#         # MLP
+#         logit = torch.sigmoid(self.mlp(readout))
+
+#         return logit
+
 class DeepMOI(nn.Module):
     def __init__(self, in_dim, pathway, add_features=None):
         """
@@ -95,8 +157,24 @@ class DeepMOI(nn.Module):
         hidden_dim: == 
         """
         super(DeepMOI, self).__init__()
+        self.pathway = pathway
+        
         # GNN-1
-        self.conv1 = SAGEConv(in_dim, in_dim*8)
+        self.conv_a = SAGEConv(in_dim, in_dim*8)
+        self.readout_a = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        
+        # GNN-2
+        self.conv_b = SAGEConv(in_dim*8, in_dim*8)
+        self.readout_b = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        
+        # GNN-3
+        self.conv_c = SAGEConv(in_dim*8, in_dim*8)
+        self.readout_c = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        
+        
+        
+        # GNN-1
+        self.conv1 = SAGEConv(in_dim*8, in_dim*8)
         self.pool1 = SAGPooling(in_dim*8, ratio=0.8)
         self.readout1 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
         # GNN-2
@@ -107,9 +185,14 @@ class DeepMOI(nn.Module):
         self.conv3 = SAGEConv(in_dim*8, in_dim*8)
         self.pool3 = SAGPooling(in_dim*8, ratio=0.8)
         self.readout3 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        
+        # lin
+        self.lin = nn.Linear(in_dim*8*3, 1)
+        
         # MLP
+        
         self.mlp = nn.Sequential(
-                                 nn.Linear(in_dim*8*3, 48),
+                                 nn.Linear(len(self.pathway.pathway.unique()) + 1, 48),
                                  nn.Tanh(),
                                  nn.Dropout(p=0.4),
                                  nn.Linear(48, 16),
@@ -118,31 +201,56 @@ class DeepMOI(nn.Module):
                                  nn.Sigmoid()
                                 )
         self.norm = GraphNorm(in_dim*8)
+        
+        
     
     def forward(self, g, h, c=None):
         edge_index = g.edge_index
         edge_index,_ = add_self_loops(edge_index=edge_index)
         x = h
         # GNN-1
-        x = torch.tanh(self.conv1(x, edge_index))
-        x, edge_index, _, _, _, _ = self.pool1(x, edge_index, None, None)
-        x1 = self.readout1(x, None)
+        x = torch.tanh(self.conv_a(x, edge_index))
+        x1 = self.readout_a(x, None)
 
         # GNN-2
         x = self.norm(x)
-        x = torch.tanh(self.conv2(x, edge_index))
-        x, edge_index, _, _, _, _ = self.pool2(x, edge_index, None, None)
-        x2 = self.readout2(x)
+        x = torch.tanh(self.conv_b(x, edge_index))
+        x2 = self.readout_b(x)
 
         # GNN-3
         x = self.norm(x)
-        x = torch.tanh(self.conv3(x, edge_index))
-        x, edge_index, _, _, _, _ = self.pool3(x, edge_index, None, None)
-        x3 = self.readout3(x)
+        x = torch.tanh(self.conv_c(x, edge_index))
+        x3 = self.readout_c(x)
 
         # concat readout
-        readout = torch.cat([x1, x2, x3], dim=1)
-
+        readout1 = torch.cat([x1, x2, x3], dim=1)
+        
+        ###
+        batch_size = len(self.pathway.pathway.unique())
+        subgraphs = []
+        for path, group in self.pathway.groupby('pathway'):
+            nodes = list(set(group.src.to_list() + group.dest.to_list()))
+            sub_edge_idx,_ = subgraph(subset=nodes, edge_index=edge_index)
+            subgraphs.append(Data(x=x, edge_index=sub_edge_idx))
+        dataset = DataLoader(subgraphs, batch_size=batch_size)
+        for dat in dataset:
+            x, edge_index, batch = dat.x, dat.edge_index, dat.batch
+            # GNN-1
+            x = torch.tanh(self.conv1(x, edge_index))
+            x, edge_index, _, batch, _, _ = self.pool1(x, edge_index, None, batch)
+            x1 = self.readout1(x, batch)
+            # GNN-2
+            x = torch.tanh(self.conv2(x, edge_index))
+            x, edge_index, _, batch, _, _ = self.pool2(x, edge_index, None, batch)
+            x2 = self.readout2(x, batch)
+            # GNN-3
+            x = torch.tanh(self.conv3(x, edge_index))
+            x, edge_index, _, batch, _, _ = self.pool3(x, edge_index, None, batch)
+            x3 = self.readout3(x, batch)
+            readout2 = torch.cat([x1, x2, x3], dim=1)
+            
+        readout = torch.cat([readout1, readout2], dim=0)
+        readout = torch.tanh(self.lin(readout).T)
         # MLP
         logit = torch.sigmoid(self.mlp(readout))
 

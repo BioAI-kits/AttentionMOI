@@ -4,7 +4,7 @@ import pandas as pd
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from data import *
+from data_ import *
 from util import *
 from module import DeepMOI
 
@@ -66,55 +66,47 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     """
     # read dataset
     print('[INFO] Reading dataset. There are {} omics data in total.\n'.format(len(omics_files)))
-    omics = read_omics(omics_files=omics_files, label_file=label_file, add_file=add_file)
-    graph, labels, add_features, id_mapping = build_graph(omics=omics, label_file=label_file, add_file=add_file, network_file=network_file)
-    omic_features = graph.x
+    G, pathway, id_mapping = read_omics(omics_files=omics_files, label_file=label_file, add_file=add_file, pathway_file='./Pathway/Rectome.pathway.tmp.csv')
+    labels = G.label
+    # graph, labels, add_features, id_mapping = build_graph(omics=omics, label_file=label_file, add_file=add_file, network_file=network_file)
+    # omic_features = graph.x
     
-    # to device
-    graph = graph.to(device)
-    omic_features = omic_features.to(device)
-    if add_features != None:
-        add_features = add_features.to(device)
+    # # to device
+    # graph = graph.to(device)
+    # omic_features = omic_features.to(device)
+    # if add_features != None:
+    #     add_features = add_features.to(device)
     
-    # read pathway
-    if pathway_file == 'default':
-        base_path = os.path.split(os.path.realpath(__file__))[0]
-        pathway_file = os.path.join(base_path, 'Pathway', 'pathway_genes.gmt')
-    pathways = read_pathways(id_mapping=id_mapping, file=pathway_file)
+    # # read pathway
+    # if pathway_file == 'default':
+    #     base_path = os.path.split(os.path.realpath(__file__))[0]
+    #     pathway_file = os.path.join(base_path, 'Pathway', 'pathway_genes.gmt')
+    # pathways = read_pathways(id_mapping=id_mapping, file=pathway_file)
 
     # split dataset
-    train_idx, test_idx = data_split(labels=labels, test_size=test_size)
+    train_idx, test_idx = data_split(labels=G.label, test_size=test_size)
 
     # init model
     print('[INFO] Start training model:')
-    model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features).to(device=device)
+    # model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features).to(device=device)
+    model = DeepMOI(3, pathway)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.003)
 
     # train model
     for epoch in range(epoch):
         model.train()
-
-        # # 
-        # if epoch < 50:
-        #     for k,v in model.named_parameters():
-        #         if k.startswith('lin'):
-        #             v.requires_grad = False
-        # else:
-        #     for k,v in model.named_parameters():
-        #         if  k.startswith('lin'):
-        #             v.requires_grad = True
-        #         else:
-        #             v.requires_grad = False
-
         logits_epoch, labels_epoch, loss_epoch = [], [], [] # for training dataset evaluation
         for idx in batch_idx(train_idx=train_idx, minibatch=minibatch):
             logits_batch = []
             # patients-wise
+            # for i in idx:
+            #     if add_features != None:
+            #         logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
+            #     else:
+            #         logit = model(g=graph, h=omic_features[:, i, :], c=None)
             for i in idx:
-                if add_features != None:
-                    logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
-                else:
-                    logit = model(g=graph, h=omic_features[:, i, :], c=None)
+                logit = model(G, G.x[:, i, :])
+                print(logit)
                 logits_batch.append(logit)
                 logits_epoch.append(logit.to(device='cpu').detach().numpy())
             # backward
@@ -138,14 +130,15 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
         # evaluation for testing dataset
-        if epoch > 5:
+        if epoch > 0:
             model.eval()
             logits = []
             for i in test_idx:
-                if add_features != None:
-                    logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
-                else:
-                    logit = model(g=graph, h=omic_features[:, i, :], c=None)
+                # if add_features != None:
+                #     logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
+                # else:
+                #     logit = model(g=graph, h=omic_features[:, i, :], c=None)
+                logit = model(G, G.x[:, i, :])
                 logits.append(logit.detach().numpy())
             logits = np.concatenate(logits)
             acc, auc, f1_score_, sens, spec = evaluate(logits, labels[test_idx])
