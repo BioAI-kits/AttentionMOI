@@ -68,7 +68,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     print('[INFO] Reading dataset. There are {} omics data in total.\n'.format(len(omics_files)))
     omics = read_omics(omics_files=omics_files, label_file=label_file, add_file=add_file)
     graph, labels, add_features, id_mapping = build_graph(omics=omics, label_file=label_file, add_file=add_file, network_file=network_file)
-    omic_features = graph.ndata['h']
+    omic_features = graph.x
     
     # to device
     graph = graph.to(device)
@@ -159,3 +159,6 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
         # save model
         if epoch % 10 == 0:
             torch.save(model, os.path.join(outdir,'DeepMOI_{}.pt'.format(epoch)))
+
+
+

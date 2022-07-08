@@ -3,6 +3,7 @@ import numpy as np
 import pandas as pd
 from util import check_files
 
+from torch_geometric.data import Data
 
 def read_label(file=None):
     """To read label file. 
@@ -93,6 +94,16 @@ def read_omics(omics_files, label_file, add_file=None):
             # rename first column
             df = df.rename(columns={df.columns.values[0] : 'gene'})
 
+            # # choose genes
+            # gene_names = []
+            # with open('./choose_genes.txt', 'r') as F:
+            #     for line in F.readlines():
+            #         line = line.strip()
+            #         line = int(line)
+            #         gene_names.append(line)
+            # df = df[df.gene.isin(gene_names)].reset_index(drop=True)
+
+
             # process
             df = df.drop_duplicates('gene', keep='first')
             df = df.sort_values('gene').reset_index(drop=True)
@@ -150,7 +161,8 @@ def read_pathways(id_mapping, file):
             line = line.strip().split("\t")
             genes = [int(i.strip()) for i in line[1:]]
             nodes_id = id_mapping.loc[set(genes) & set(id_mapping.index.values), 'node_id'].values
-            pathways[line[0]] = nodes_id
+            if len(nodes_id) > 20:
+                pathways[line[0]] = nodes_id
     return pathways
 
 
@@ -196,7 +208,7 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
     
     # only keep overlapping genes for ppi
     df_ppi = df_ppi[(df_ppi.src.isin(genes)) & ((df_ppi.dest.isin(genes)))].reset_index(drop=True)
-    
+
     # only keep overlapping genes for omic
     omics = [omic[omic.gene.isin(genes)].reset_index(drop=True) for omic in omics]
     
@@ -240,15 +252,24 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
         omics_tensor.append(omic_data)
     multi_omics = torch.stack(omics_tensor, 2).squeeze(3)
     
-    # build graph
-    g = dgl.graph((df_ppi.src.to_list(), df_ppi.dest.to_list()))
-    # add edge feature, scale to 0-1
-    e = torch.tensor(df_ppi.score.values)
-    e = e.reshape(-1,1)
-    e = (e - e.min()) / (e.max() - e.min())
-    g.edata['e'] = e
-    # add node features
-    g.ndata['h'] = multi_omics
+    # build graph with pyg
+    edge_index = torch.tensor([df_ppi.src.to_list(), df_ppi.dest.to_list()], dtype=torch.long)
+    g = Data(x=multi_omics, edge_index=edge_index)
+    print(g)
+    print(g.num_nodes)
+    print(g.num_edges)
+
+    # # build graph
+    # g = dgl.graph((df_ppi.src.to_list(), df_ppi.dest.to_list()))
+    # # add edge feature, scale to 0-1
+    # e = torch.tensor(df_ppi.score.values)
+    # e = e.reshape(-1,1)
+    # e = (e - e.min()) / (e.max() - e.min())
+    # g.edata['e'] = e
+    # # add node features
+    # print(multi_omics.shape)
+    # print(g)
+    # g.ndata['h'] = multi_omics
 
     labels = df_label.label.values
 
