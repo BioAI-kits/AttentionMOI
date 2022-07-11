@@ -171,8 +171,6 @@ class DeepMOI(nn.Module):
         self.conv_c = SAGEConv(in_dim*8, in_dim*8)
         self.readout_c = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
         
-        
-        
         # GNN-1
         self.conv1 = SAGEConv(in_dim*8, in_dim*8)
         self.pool1 = SAGPooling(in_dim*8, ratio=0.8)
@@ -190,11 +188,10 @@ class DeepMOI(nn.Module):
         self.lin = nn.Linear(in_dim*8*3, 1)
         
         # MLP
-        
         self.mlp = nn.Sequential(
                                  nn.Linear(len(self.pathway.pathway.unique()) + 1, 48),
                                  nn.Tanh(),
-                                 nn.Dropout(p=0.4),
+                                 nn.Dropout(p=0.1),
                                  nn.Linear(48, 16),
                                  nn.Tanh(),
                                  nn.Linear(16,1),
@@ -240,10 +237,12 @@ class DeepMOI(nn.Module):
             x, edge_index, _, batch, _, _ = self.pool1(x, edge_index, None, batch)
             x1 = self.readout1(x, batch)
             # GNN-2
+            x = self.norm(x)
             x = torch.tanh(self.conv2(x, edge_index))
             x, edge_index, _, batch, _, _ = self.pool2(x, edge_index, None, batch)
             x2 = self.readout2(x, batch)
             # GNN-3
+            x = self.norm(x)
             x = torch.tanh(self.conv3(x, edge_index))
             x, edge_index, _, batch, _, _ = self.pool3(x, edge_index, None, batch)
             x3 = self.readout3(x, batch)
@@ -252,6 +251,6 @@ class DeepMOI(nn.Module):
         readout = torch.cat([readout1, readout2], dim=0)
         readout = torch.tanh(self.lin(readout).T)
         # MLP
-        logit = torch.sigmoid(self.mlp(readout))
+        logit = self.mlp(readout)
 
         return logit

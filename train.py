@@ -90,7 +90,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     print('[INFO] Start training model:')
     # model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features).to(device=device)
     model = DeepMOI(3, pathway)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.003)
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.00001)
 
     # train model
     for epoch in range(epoch):
@@ -106,7 +106,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
             #         logit = model(g=graph, h=omic_features[:, i, :], c=None)
             for i in idx:
                 logit = model(G, G.x[:, i, :])
-                print(logit)
+                # print(logit)
                 logits_batch.append(logit)
                 logits_epoch.append(logit.to(device='cpu').detach().numpy())
             # backward
@@ -130,24 +130,24 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
             epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
         # evaluation for testing dataset
-        if epoch > 0:
-            model.eval()
-            logits = []
-            for i in test_idx:
-                # if add_features != None:
-                #     logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
-                # else:
-                #     logit = model(g=graph, h=omic_features[:, i, :], c=None)
-                logit = model(G, G.x[:, i, :])
-                logits.append(logit.detach().numpy())
-            logits = np.concatenate(logits)
-            acc, auc, f1_score_, sens, spec = evaluate(logits, labels[test_idx])
-            print('Epoch {:2d} | Test_Loss  {:.10f} | Test_ACC  {:.3f} | Test_AUC  {:.3f} | Test_F1_score  {:.3f} | Test_Sens  {:.3f} | Test_Spec  {:.3f}\n'.format(
-                    epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
-                    )
-            with open('log.txt', 'a') as F:
-                F.writelines('Epoch {:2d} | Test_Loss  {:.10f} | Test_ACC  {:.3f} | Test_AUC  {:.3f} | Test_F1_score  {:.3f} | Test_Sens  {:.3f} | Test_Spec  {:.3f}\n'.format(
-                epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
+        # if epoch > 0:
+        model.eval()
+        logits = []
+        for i in test_idx:
+            # if add_features != None:
+            #     logit = model(g=graph, h=omic_features[:, i, :], c=add_features[i])
+            # else:
+            #     logit = model(g=graph, h=omic_features[:, i, :], c=None)
+            logit = model(G, G.x[:, i, :])
+            logits.append(logit.detach().numpy())
+        logits = np.concatenate(logits)
+        acc, auc, f1_score_, sens, spec = evaluate(logits, labels[test_idx])
+        print('Epoch {:2d} | Test_Loss  {:.10f} | Test_ACC  {:.3f} | Test_AUC  {:.3f} | Test_F1_score  {:.3f} | Test_Sens  {:.3f} | Test_Spec  {:.3f}\n'.format(
+                epoch, loss_epoch, acc, auc, f1_score_, sens, spec)
+                )
+        with open('log.txt', 'a') as F:
+            F.writelines('Epoch {:2d} | Test_Loss  {:.10f} | Test_ACC  {:.3f} | Test_AUC  {:.3f} | Test_F1_score  {:.3f} | Test_Sens  {:.3f} | Test_Spec  {:.3f}\n'.format(
+            epoch, loss_epoch, acc, auc, f1_score_, sens, spec))
         
         # save model
         if epoch % 10 == 0:
