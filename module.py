@@ -1,3 +1,4 @@
+from turtle import forward
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -150,6 +151,44 @@ from torch_geometric.data import Data
 
 #         return logit
 
+
+class PathFeature(nn.Module):
+    def __init__(self, in_dim):
+        super(PathFeature, self).__init__()
+        # GNN-1
+        self.conv1 = SAGEConv(in_dim, in_dim)
+        self.pool1 = SAGPooling(in_dim, ratio=0.8)
+        self.readout1 = GlobalAttention(gate_nn=nn.Linear(in_dim, 1))
+        # GNN-2
+        self.conv2 = SAGEConv(in_dim, in_dim)
+        self.pool2 = SAGPooling(in_dim, ratio=0.8)
+        self.readout2 = GlobalAttention(gate_nn=nn.Linear(in_dim, 1))
+        # GNN-3
+        self.conv3 = SAGEConv(in_dim, in_dim)
+        self.pool3 = SAGPooling(in_dim, ratio=0.8)
+        self.readout3 = GlobalAttention(gate_nn=nn.Linear(in_dim, 1))
+        self.norm = GraphNorm(in_dim)
+    def forward(self, g, h):
+        edge_index = g.edge_index
+        x = h
+        # GNN-1
+        x = torch.tanh(self.conv1(x, edge_index))
+        x, edge_index, _, _, _, _ = self.pool1(x, edge_index, None, None)
+        x1 = self.readout1(x)
+        # GNN-2
+        x = self.norm(x)
+        x = torch.tanh(self.conv2(x, edge_index))
+        x, edge_index, _, _, _, _ = self.pool2(x, edge_index, None, None)
+        x2 = self.readout2(x)
+        # GNN-3
+        x = self.norm(x)
+        x = torch.tanh(self.conv3(x, edge_index))
+        x, edge_index, _, _, _, _ = self.pool3(x, edge_index, None, None)
+        x3 = self.readout3(x)
+        readout2 = torch.cat([x1, x2, x3], dim=1)
+        return readout2
+
+
 class DeepMOI(nn.Module):
     def __init__(self, in_dim, pathway, add_features=None):
         """
@@ -171,18 +210,21 @@ class DeepMOI(nn.Module):
         self.conv_c = SAGEConv(in_dim*8, in_dim*8)
         self.readout_c = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
         
-        # GNN-1
-        self.conv1 = SAGEConv(in_dim*8, in_dim*8)
-        self.pool1 = SAGPooling(in_dim*8, ratio=0.8)
-        self.readout1 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
-        # GNN-2
-        self.conv2 = SAGEConv(in_dim*8, in_dim*8)
-        self.pool2 = SAGPooling(in_dim*8, ratio=0.8)
-        self.readout2 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
-        # GNN-3
-        self.conv3 = SAGEConv(in_dim*8, in_dim*8)
-        self.pool3 = SAGPooling(in_dim*8, ratio=0.8)
-        self.readout3 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        # # GNN-1
+        # self.conv1 = SAGEConv(in_dim*8, in_dim*8)
+        # self.pool1 = SAGPooling(in_dim*8, ratio=0.8)
+        # self.readout1 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        # # GNN-2
+        # self.conv2 = SAGEConv(in_dim*8, in_dim*8)
+        # self.pool2 = SAGPooling(in_dim*8, ratio=0.8)
+        # self.readout2 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        # # GNN-3
+        # self.conv3 = SAGEConv(in_dim*8, in_dim*8)
+        # self.pool3 = SAGPooling(in_dim*8, ratio=0.8)
+        # self.readout3 = GlobalAttention(gate_nn=nn.Linear(in_dim*8, 1))
+        self.submodels = nn.ModuleList()
+        for _ in range(len(self.pathway.pathway.unique())):
+            self.submodels.append(PathFeature(in_dim=in_dim*8))
         
         # lin
         self.lin = nn.Linear(in_dim*8*3, 1)
@@ -223,34 +265,46 @@ class DeepMOI(nn.Module):
         readout1 = torch.cat([x1, x2, x3], dim=1)
         
         ###
-        batch_size = len(self.pathway.pathway.unique())
-        subgraphs = []
+        i = 0
+        readout2 = []
         for path, group in self.pathway.groupby('pathway'):
             nodes = list(set(group.src.to_list() + group.dest.to_list()))
             sub_edge_idx,_ = subgraph(subset=nodes, edge_index=edge_index)
-            subgraphs.append(Data(x=x, edge_index=sub_edge_idx))
-        dataset = DataLoader(subgraphs, batch_size=batch_size)
-        for dat in dataset:
-            x, edge_index, batch = dat.x, dat.edge_index, dat.batch
-            # GNN-1
-            x = torch.tanh(self.conv1(x, edge_index))
-            x, edge_index, _, batch, _, _ = self.pool1(x, edge_index, None, batch)
-            x1 = self.readout1(x, batch)
-            # GNN-2
-            x = self.norm(x)
-            x = torch.tanh(self.conv2(x, edge_index))
-            x, edge_index, _, batch, _, _ = self.pool2(x, edge_index, None, batch)
-            x2 = self.readout2(x, batch)
-            # GNN-3
-            x = self.norm(x)
-            x = torch.tanh(self.conv3(x, edge_index))
-            x, edge_index, _, batch, _, _ = self.pool3(x, edge_index, None, batch)
-            x3 = self.readout3(x, batch)
-            readout2 = torch.cat([x1, x2, x3], dim=1)
+            dat = Data(x=x, edge_index=sub_edge_idx)
+            out = self.submodels[i](dat, x)
+            readout2.append(out)
+        readout2.append(readout1)
+        readout = torch.cat(readout2, dim=0)
+
+
+        # batch_size = len(self.pathway.pathway.unique())
+        # subgraphs = []
+        # for path, group in self.pathway.groupby('pathway'):
+        #     nodes = list(set(group.src.to_list() + group.dest.to_list()))
+        #     sub_edge_idx,_ = subgraph(subset=nodes, edge_index=edge_index)
+        #     subgraphs.append(Data(x=x, edge_index=sub_edge_idx))
+        # dataset = DataLoader(subgraphs, batch_size=batch_size)
+        # for dat in dataset:
+        #     x, edge_index, batch = dat.x, dat.edge_index, dat.batch
+        #     # GNN-1
+        #     x = torch.tanh(self.conv1(x, edge_index))
+        #     x, edge_index, _, batch, _, _ = self.pool1(x, edge_index, None, batch)
+        #     x1 = self.readout1(x, batch)
+        #     # GNN-2
+        #     x = self.norm(x)
+        #     x = torch.tanh(self.conv2(x, edge_index))
+        #     x, edge_index, _, batch, _, _ = self.pool2(x, edge_index, None, batch)
+        #     x2 = self.readout2(x, batch)
+        #     # GNN-3
+        #     x = self.norm(x)
+        #     x = torch.tanh(self.conv3(x, edge_index))
+        #     x, edge_index, _, batch, _, _ = self.pool3(x, edge_index, None, batch)
+        #     x3 = self.readout3(x, batch)
+        #     readout2 = torch.cat([x1, x2, x3], dim=1)
             
-        readout = torch.cat([readout1, readout2], dim=0)
+        # readout = torch.cat([readout1, readout2], dim=0)
         readout = torch.tanh(self.lin(readout).T)
         # MLP
         logit = self.mlp(readout)
-
+        
         return logit
