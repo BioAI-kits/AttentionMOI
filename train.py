@@ -89,7 +89,7 @@ def train(omics_files, label_file, add_file, test_size, pathway_file, network_fi
     # init model
     print('[INFO] Start training model:')
     # model = DeepMOI(in_dim=len(omics_files), pathway=pathways, add_features=add_features).to(device=device)
-    model = DeepMOI(3, pathway)
+    model = DeepMOI(3, pathway).to(device=device)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=0.00001)
 
     # train model
