@@ -306,5 +306,6 @@ class DeepMOI(nn.Module):
         readout = torch.tanh(self.lin(readout).T)
         # MLP
         logit = self.mlp(readout)
-        
+
         return logit
+        
