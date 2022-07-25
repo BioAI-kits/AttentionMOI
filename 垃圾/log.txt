@@ -1,0 +1,1 @@
+Epoch  0 | Train_Loss 0.6931372078 | Train_ACC 0.515 | Train_AUC 0.460 | Train_F1_score 0.680 | Train_Sens 1.000 | Train_Spec 0.000

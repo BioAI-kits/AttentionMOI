@@ -1,0 +1,1 @@
+python train.py -f ./data/LGG/rna.csv.gz -f ./data/LGG/met.csv.gz -l ./data/LGG/label.csv -a ./data/LGG/mirna.csv.gz --lr 0.0001 -b 16 -e 200
