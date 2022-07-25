@@ -277,5 +277,5 @@ def build_graph(omics, label_file, add_file=None, network_file='default'):
 
 
 if __name__ == "__main__":
-    omics = read_omics(omics_files=["./data/GBM/GBM.cnv.csv.gz", "./data/GBM/GBM.met.csv.gz"], label_file="./data/GBM/labels.csv", add_file="./data/GBM/clinincal.csv")
+    omics = read_omics(omics_files=["./data/LGG/rna.csv.gz", "./data/LGG/met.csv.gz"], label_file="./data/GBM/labels.csv", add_file="./data/GBM/clinincal.csv")
     g, labels, add_features, id_mapping = build_graph(omics=omics, label_file="./data/GBM/labels.csv", add_file="./data/GBM/clinincal.csv")
