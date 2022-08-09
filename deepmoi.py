@@ -12,9 +12,9 @@ def get_args():
     parser.add_argument('-f','--omic_file', action='append', help='omics file.', required=True)
     parser.add_argument('-l','--label_file', help='label file', required=True)
     parser.add_argument('-o','--outdir', help='output dir.', type=str, default='./output')
+    parser.add_argument('-c','--clin_file', default=None, help='clinical features')
+
     parser.add_argument('-a','--additional_features', default=None, help='Non-omic features')
-    parser.add_argument('-p','--pathway', help='The pathway file that should be gmt format.', type=str, default='default')
-    parser.add_argument('-n','--network', help='The network file that should be gmt format.', type=str, default='default')
     parser.add_argument('-b','--batch', help='Mini-batch number.', type=int, default=16)
     parser.add_argument('-e','--epoch', help='epoch number.', type=int, default=50)
     parser.add_argument('-r','--lr', help='learning rate.', type=float, default=0.001)
