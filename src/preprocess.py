@@ -34,7 +34,7 @@ def read_label(args):
 def read_clin(args):
     file = args.clin_file
     df = None
-    if file != None:
+    if not file is None:
         df = read_(file)
         df = df.fillna(0)
     return df
@@ -44,7 +44,7 @@ def process(df_omics, df_label, df_clin):
     # extract patient id
     patients = [df_tmp.index.to_list() for df_tmp in df_omics]
     patients.append(df_label.index.to_list())
-    if df_clin != None:
+    if not df_clin is None:
         patients.append(df_clin.index.to_list())
 
     # get shared patients between different data
@@ -54,10 +54,10 @@ def process(df_omics, df_label, df_clin):
 
     # extract shared patients' data
     for i in range(len(df_omics)):
-        df_omics[i] = df_omics[i].loc[patients_shared, :]
-    df_label = df_label.loc[patients_shared, :]
-    if df_clin != None:
-        df_clin = df_clin.loc[patients_shared, :]
+        df_omics[i] = df_omics[i].loc[patients_shared, :].sort_index()
+    df_label = df_label.loc[patients_shared, :].sort_index()
+    if not df_clin is None:
+        df_clin = df_clin.loc[patients_shared, :].sort_index()
     return df_omics, df_label, df_clin
 
 
