@@ -26,6 +26,7 @@ DeepMOI /
             |-- model.pt
             |-- readme.md
     |-- src /                           # 存储依赖脚本
+        |-- preprocess.py                   # 读取数据
         |-- features.py                     # 特征筛选
         |-- module.py                       # 构建模型
         |-- explain.py                      # 模型解释
