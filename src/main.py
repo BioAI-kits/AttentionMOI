@@ -1,7 +1,7 @@
 import os
 from .utils import check_files
 from .selection import feature_selection
-
+from .train import train
 
 def run(args):
     # check files exists
@@ -16,7 +16,7 @@ def run(args):
     dataset = feature_selection(args)
 
     # training model
-    # train(omics, labels, args)
+    train(args, dataset)
 
     # # explain model
     # explain(args)
