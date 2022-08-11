@@ -34,9 +34,11 @@ def feature_selection(args):
     seeds = np.random.randint(0, 10000, args.iteration)
 
     # 3. selection: omic-wise selection
-    choosed_omics = []
+    choosed_omics = []  # save feature 
+    choosed_feat_name = []  # save feature's name
+    choosed_omic_group = []  # save feature's omic group
     for omic_num, df_omic in enumerate(df_omics):
-        print("正在处理第{}个组学数据集.\n".format(omic_num))
+        print("Runing feature selection for {}\n".format(args.omic_name[omic_num]))
         choosed_feat_id = []
         omic_data = df_omic.values
         for i in tqdm(range(omic_data.shape[1])):
@@ -50,6 +52,8 @@ def feature_selection(args):
             m = m / len(seeds)
             if m > 0.7:
                 choosed_feat_id.append(i)
+                choosed_feat_name.append(df_omic.columns.values[i])
+                choosed_omic_group.append(args.omic_name[omic_num])
         choosed_omics.append(
             df_omic.iloc[:, choosed_feat_id].values
         )
@@ -57,6 +61,9 @@ def feature_selection(args):
     # 4. merge omic dataset
     if not df_clin is None:
         choosed_omics.append(df_clin.values)
+        choosed_feat_name += df_clin.columns.to_list()
+        choosed_omic_group += ['Clin'] * df_clin.shape[1]
+
     data = np.concatenate(choosed_omics, 1)
     data = np.nan_to_num(data)
     data = data.astype('float32')
@@ -67,4 +74,4 @@ def feature_selection(args):
         dataset.append([torch.tensor(data[i]), torch.tensor(labels[i])])
 
     # 6. return dataset
-    return dataset
+    return dataset, choosed_feat_name, choosed_omic_group

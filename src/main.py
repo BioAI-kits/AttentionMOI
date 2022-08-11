@@ -2,6 +2,8 @@ import os
 from .utils import check_files
 from .selection import feature_selection
 from .train import train
+from .explain import explain
+
 
 def run(args):
     # check files exists
@@ -13,13 +15,13 @@ def run(args):
         os.makedirs(args.outdir)
 
     # features selection
-    dataset = feature_selection(args)
+    dataset, feature_name, feature_group = feature_selection(args)
 
     # training model
-    train(args, dataset)
+    model, dataset_test = train(args, dataset)
 
     # # explain model
-    # explain(args)
+    explain(args, model, dataset_test, feature_name, feature_group)
 
 
 
