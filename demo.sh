@@ -1,0 +1,1 @@
+python deepmoi.py -f ./dataset/GBM/cnv.csv.gz -f ./dataset/GBM/rna.csv.gz -f ./dataset/GBM/met.csv.gz  -l ./dataset/GBM/labels.csv -c ./dataset/GBM/clin.csv -n cnv -n rna -n met

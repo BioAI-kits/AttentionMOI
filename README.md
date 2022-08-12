@@ -51,18 +51,38 @@ conda activate DeepMOI
 ## install requirement packages
 
 ```py
-pip install requirement.txt
+pip install requirements.txt
 ```
 
 ## download DeepMOI
 
 ```
-git clone xxxx.git
+git clone git@github.com:BioAI-kits/DeepMOI.git
+```
+
+## perform demo
+
+```py
+python deepmoi.py -f ./dataset/GBM/cnv.csv.gz -f ./dataset/GBM/rna.csv.gz -f ./dataset/GBM/met.csv.gz  -l ./dataset/GBM/labels.csv -c ./dataset/GBM/clin.csv -n cnv -n rna -n met
 ```
 
 # parameters
 
-- 
+- -f 
+
+> omic file
+
+- -l 
+
+> label file
+
+- c 
+
+> clinical file
+
+-n 
+
+> omic name (need to correspond to -f)
 
 
 
