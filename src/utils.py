@@ -1,11 +1,8 @@
-import mygene
-import gzip
-import pandas as pd
-from sklearn import metrics
-from sklearn.metrics import confusion_matrix, f1_score
+import os, sys, time, torch, gzip
 import numpy as np
-import os
-import sys
+import pandas as pd
+from sklearn.metrics import f1_score, recall_score, roc_auc_score, precision_score, accuracy_score
+from captum.attr import IntegratedGradients
 
 
 def clin_process_tsi(in_file, out_file, threshold=2):
@@ -51,31 +48,6 @@ def clin_process_tsi(in_file, out_file, threshold=2):
     df_clin.to_csv(out_file, index=False)
 
 
-def evaluate(logits, real_labels):
-    """
-    logits: sigmoid
-    real_labels (numpy.array, dim=1)
-    
-    Return
-        acc, auc, f1_score_, sens, spec
-    """
-    # acc
-    pred = [1 if i > 0.5 else 0 for i in logits]
-    acc = np.sum(pred == real_labels) / len(real_labels)
-    # matrix
-    TN, FP, FN, TP = confusion_matrix(y_true=real_labels, y_pred=pred).ravel()
-    # auc
-    fpr, tpr, thresholds = metrics.roc_curve(real_labels, logits, pos_label=1)
-    auc = metrics.auc(fpr, tpr)
-    # F1 score
-    f1_score_ = f1_score(y_true=real_labels, y_pred=pred)
-    # sens
-    sens = TP/float(TP+FN)
-    # spec
-    spec = TN/float(TN+FP)
-    return acc, auc, f1_score_, sens, spec
-
-
 def check_files(files):
     """To check files.
     files (str or list)
@@ -94,4 +66,61 @@ def check_files(files):
         sys.exit(1)
 
 
+# init log.txt
+def init_log(args):
+    with open(os.path.join(args.outdir, 'log.txt'), 'w') as O:
+        run_time = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
+        head_line = "Perform model training at {}".format(run_time)
+        O.writelines(head_line + '\n\n')
 
+
+# for evaluation
+def evaluate(pred_prob, real_label, average="macro"):
+    # For evaluating binary classification models
+    if pred_prob.shape[1] == 2:
+        y_pred = np.argmax(pred_prob, 1)
+        prec = precision_score(real_label, y_pred)
+        acc = accuracy_score(real_label, y_pred)
+        f1 = f1_score(real_label, y_pred)
+        recall = recall_score(real_label, y_pred)
+        auc = roc_auc_score(real_label, pred_prob[:, 1])
+    # For evaluating multiclass models
+    else:
+        y_pred = np.argmax(pred_prob, 1)
+        prec = precision_score(real_label, y_pred, average='macro')
+        acc = accuracy_score(real_label, y_pred)
+        f1 = f1_score(real_label, y_pred, average=average)
+        recall = recall_score(real_label, y_pred, average=average)
+        auc = roc_auc_score(real_label, pred_prob, average='macro', multi_class='ovo')
+
+    return acc, prec, f1, auc, recall
+
+
+# for explain
+def ig(args, model, dataset, feature_names, omic_group, target=1):
+    # prepare input data
+    input_tensor_list = [d[0].unsqueeze(0) for d in dataset]
+    input_tensor = torch.cat(input_tensor_list, 0)
+    input_tensor.requires_grad_()
+
+    # instantiation
+    ig = IntegratedGradients(model)
+    
+    # calculating feature importance using IG
+    attr, _ = ig.attribute(input_tensor, return_convergence_delta=True, target=target)
+    attr = attr.detach().numpy()
+    feat_importance = np.mean(attr, axis=0)
+
+    # result
+    df_imp = pd.DataFrame({'Feature': feature_names, 
+                           'Omic': omic_group,
+                           'Target': [target]*len(feature_names),
+                           'Importance_value': feat_importance,
+                           'Importance_value_abs': abs(feat_importance)
+                           })
+    df_imp = df_imp.sort_values('Importance_value_abs', ascending=False)
+
+    # output 
+    df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_target{}.csv'.format(target)), index=False)
+    
+    return df_imp
