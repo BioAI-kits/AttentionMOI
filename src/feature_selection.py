@@ -33,16 +33,3 @@ def rfe(args, df_omic, label):
     select.fit(X=df_omic.values, y=label)
     features = df_omic.columns.values[select.get_support()]  # features selected by REF.
     return df_omic[features]
-
-
-
-
-
-
-
-
-
-
-
-
-
