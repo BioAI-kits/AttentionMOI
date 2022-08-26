@@ -1,1 +1,0 @@
-python deepmoi.py -f ./dataset/Test/rna.csv.gz -f ./dataset/Test/cnv.csv.gz -f ./dataset/Test/met.csv.gz  -l ./dataset/Test/label.csv -n rna -n cnv -n met -s 42 -b 16
