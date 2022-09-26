@@ -1,0 +1,224 @@
+---
+title: "sgcca"
+author: "Jiali Pang"
+date: "8/30/2022"
+output: html_document
+---
+
+```{r}
+library(RGCCA)
+library(ggplot2)
+library(data.table)
+
+cnv <- read.table(gzfile("../dataset/KIPAN/KIPAN_cnv_logRatio.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(cnv) <- cnv[1,]
+cnv <- cnv[-c(1),]
+
+
+exp <- read.table(gzfile("../dataset/KIPAN/KIPAN_exp.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(exp) <- exp[1,]
+exp <- exp[-c(1),]
+
+
+met <- read.table(gzfile("../dataset/KIPAN/KIPAN_met.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(met) <- met[1,]
+met <- met[-c(1),]
+
+
+label <- read.csv("../dataset/KIPAN/KIPAN_label.csv", stringsAsFactors=FALSE)
+
+shared_id <-intersect(row.names(exp), intersect(row.names(met), intersect(label$X, row.names(cnv))))  
+
+cnv <- sapply(cnv[row.names(cnv) %in% shared_id,], as.numeric)
+exp <- sapply(exp[row.names(exp) %in% shared_id,], as.numeric)
+met <- sapply(met[row.names(met) %in% shared_id,], as.numeric)
+met[is.na(met)] <- 0
+label <- label[label$X %in% shared_id,]
+row.names(label) <- label$X
+label <- label["label"]
+
+A = list(cnv = cnv,
+         met = met,
+         exp = exp,
+         label = label
+)
+
+type <- factor(label$label)
+levels(type) <- c("KICH", "KIRC", "KIRP")
+# check dimensions of the blocks
+sapply(A, dim)
+
+nb_block = 4 #length(B)
+C = matrix(0, nb_block, nb_block)
+C[, nb_block] = 1 ; C[nb_block, ] = 1 ; diag(C) = 0
+C
+
+sgcca.kipan = sgcca(A, C,
+                     c1 = rep(1, length(A)),
+                     ncomp = c(rep(2, (length(A)-1)), 1),
+                     scale = TRUE,
+                     verbose = FALSE
+)
+
+
+df1 = data.frame(type = type, sgcca.kipan$Y[[3]])
+p1 <- ggplot(df1, aes(comp1, comp2)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  ggtitle("Factor plot (Glioma data) - super block") +
+  geom_text(aes(colour = type, label= rownames(df1)),
+            vjust=0,nudge_y = 0.03,size = 3)+
+  theme(legend.position="bottom", legend.box = "horizontal",
+        legend.title = element_blank())
+p1
+
+
+
+
+ind.select = unlist(lapply(sgcca.glioma$a[1:(length(B)-2)],
+                           function(x) x[, 1]!=0 | x[, 2]!=0))
+VAR.SELECT = B[[(length(B)-1)]][, ind.select]
+BLOCK = rep("CGH", NCOL(VAR.SELECT))
+BLOCK[grep("A", colnames(VAR.SELECT))] = "GE"
+df = data.frame(comp1 = cor(VAR.SELECT, sgcca.glioma$Y[[(length(B)-1)]][, 1]),
+                comp2 = cor(VAR.SELECT, sgcca.glioma$Y[[(length(B)-1)]][, 2]),
+                BLOCK)
+
+
+
+
+nb_boot = 500 # number of bootstrap samples
+J = length(B)-2
+STAB = list()
+for (j in 1:J)
+  STAB[[j]] = matrix(0, nb_boot, NCOL(B[[j]]))
+c1 = c(.071,.2, 1/sqrt(NCOL(B[[3]]))+.2, 1)
+B = lapply(B, cbind)
+for (i in 1:nb_boot){
+  ind = sample(NROW(B[[1]]), replace = TRUE)
+  Bscr = lapply(B, function(x) x[ind, ])
+  res = sgcca(Bscr, C, c1 = c1, ncomp = c(rep(1, length(B))),
+              scheme = "factorial", scale = TRUE)
+  for (j in 1:J) STAB[[j]][i, ] = res$a[[j]]
+}
+for (j in 1:J) colnames(STAB[[j]]) = colnames(B[[j]])
+top = 30
+count = lapply(STAB, function(x) apply(x, 2, function(y) sum(y!=0)))
+count_sort = lapply(count, function(x) sort(x, decreasing = TRUE))
+
+
+stabGE = data.frame(GE_symbol = names(count_sort[[1]])[1:top],
+                    Count = count_sort[[1]][1:top]/nb_boot)
+g1 <- ggplot(stabGE, aes(x = reorder(GE_symbol, Count), y = Count)) +
+  coord_flip() + geom_bar(stat = "identity")
+g1
+
+
+
+stabCGH = data.frame(CGH_symbol = names(count_sort[[2]])[1:top],
+                     Count = count_sort[[2]][1:top]/nb_boot)
+g2 <- ggplot(stabCGH, aes(x = reorder(CGH_symbol, Count), y = Count)) +
+  coord_flip() + geom_bar(stat = "identity")
+g2
+```
+
+
+```{r}
+
+cnv <- read.table(gzfile("../dataset/GBM/GBM_cnv_logRatio.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(cnv) <- cnv[1,]
+cnv <- cnv[-c(1),]
+
+
+exp <- read.table(gzfile("../dataset/GBM/GBM_exp.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(exp) <- exp[1,]
+exp <- exp[-c(1),]
+
+
+met <- read.table(gzfile("../dataset/GBM/GBM_met.csv.gz"), sep = ",", row.names = 1, stringsAsFactors=FALSE)
+colnames(met) <- met[1,]
+met <- met[-c(1),]
+
+
+label <- read.csv("../dataset/GBM/GBM_label.csv", stringsAsFactors=FALSE)
+
+shared_id <-intersect(row.names(exp), intersect(row.names(met), intersect(label$X, row.names(cnv))))  
+
+cnv <- sapply(cnv[row.names(cnv) %in% shared_id,], as.numeric)
+colnames(cnv) <- paste("cnv", colnames(cnv), sep = "_")
+exp <- sapply(exp[row.names(exp) %in% shared_id,], as.numeric)
+colnames(exp) <- paste("exp", colnames(exp), sep = "_")
+met <- sapply(met[row.names(met) %in% shared_id,], as.numeric)
+colnames(met) <- paste("met", colnames(met), sep = "_")
+met[is.na(met)] <- 0
+label <- label[label$X %in% shared_id,]
+row.names(label) <- label$X
+label <- label["label"]
+
+A = list(cnv = cnv,
+         met = met,
+         exp = exp,
+         label = label
+)
+
+type <- factor(label$label)
+levels(type) <- c("LTS", "STS")
+# check dimensions of the blocks
+sapply(A, dim)
+
+nb_block = 4 #length(B)
+C = matrix(0, nb_block, nb_block)
+C[, nb_block] = 1 ; C[nb_block, ] = 1 ; diag(C) = 0
+C
+
+sgcca.kipan = sgcca(A, C,
+                     c1 = rep(1, length(A)),
+                     ncomp = c(rep(2, (length(A)-1)), 1),
+                     scale = TRUE,
+                     verbose = FALSE
+)
+
+
+df1 = data.frame(type = type, sgcca.kipan$Y[[3]])
+p1 <- ggplot(df1, aes(comp1, comp2)) +
+  geom_vline(xintercept = 0) +
+  geom_hline(yintercept = 0) +
+  ggtitle("Factor plot (Glioma data) - super block") +
+  geom_text(aes(colour = type, label= rownames(df1)),
+            vjust=0,nudge_y = 0.03,size = 3)+
+  theme(legend.position="bottom", legend.box = "horizontal",
+        legend.title = element_blank())
+p1
+```
+
+
+
+```{r}
+library(mixOmics)
+X <- list(cnv = cnv,
+         met = met,
+         exp = exp)
+Y <- label
+Y <- factor(label$label)
+levels(Y) <- c("LTS", "STS")
+
+list.keepX <- list(cnv = c(20, 20), met = c(20, 20), exp = c(20, 20))
+
+
+MyResult.diablo <- block.splsda(X, Y, keepX = list.keepX)
+plotIndiv(MyResult.diablo) ## sample plot
+```
+
+```{r}
+plotVar(MyResult.diablo) ## variable plot
+```
+
+```{r}
+plotDiablo(MyResult.diablo, ncomp = 1)
+```
+
+
+```{r}
+circosPlot(MyResult.diablo, cutoff=0.7)
+```
+
