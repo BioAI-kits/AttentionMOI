@@ -36,6 +36,7 @@ def read_clin(args):
     df = None
     if not file is None:
         df = read_(file)
+        # fill na
         df = df.fillna(0)
     return df
 

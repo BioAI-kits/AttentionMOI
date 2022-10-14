@@ -65,7 +65,7 @@ def feature_selection_distribution(args):
     for omic_num, df_omic in enumerate(df_omics):
         # FSD to remove data noise
         print("Running feature selection for {}\n".format(args.omic_name[omic_num]))
-
+        # use FSD for feature selections
         if args.FSD:
             chosen_feat_id = []  # save feature's id
             omic_data = df_omic.values

@@ -10,7 +10,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from xgboost import XGBClassifier
-from .module import DeepMOI
+from .module import DeepMOI, Net
 from .utils import evaluate
 
 
@@ -63,7 +63,11 @@ def ml_models(args, data, chosen_feat_name, chosen_omic_group, labels, model_nam
             else:
                 txt.writelines(f"{model_name}\tFSD_{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
         else:
-            txt.writelines(f"{model_name}\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            if args.clin_file:
+                txt.writelines(f"{model_name}\t{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            else:
+                txt.writelines(
+                    f"{model_name}\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
     txt.close()
 
     if args.model == "svm" or model_name == "svm":
@@ -78,69 +82,86 @@ def ml_models(args, data, chosen_feat_name, chosen_omic_group, labels, model_nam
 
     if args.FSD:
         if args.clin_file:
-            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_FDS_{}_{}_clin.csv'.format(args.method, model_name)), index=True)
+            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_FDS_{}_{}_{}_clin.csv'.format(args.method, model_name, args.omic_name)), index=True)
         else:
-            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_FDS_{}_{}.csv'.format(args.method, model_name)), index=True)
+            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_FDS_{}_{}_{}.csv'.format(args.method, model_name, args.omic_name)), index=True)
     else:
         if args.clin_file:
-            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_{}_{}_clin.csv'.format(args.method, model_name)), index=True)
+            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_{}_{}_{}_clin.csv'.format(args.method, model_name, args.omic_name)), index=True)
         else:
-            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_{}_{}.csv'.format(args.method, model_name)), index=True)
+            feature_imp.to_csv(os.path.join(args.outdir, 'feature_imp_{}_{}_{}.csv'.format(args.method, model_name, args.omic_name)), index=True)
 
 # using DNN model
 def train(args, data, labels):
-    # Convert data to tensor format
     dataset = []
     for i in range(len(labels)):
-        dataset.append([torch.tensor(data[i]), torch.tensor(labels[i])])
-    # prepare
-    in_dim = dataset[0][0].shape[0]  # input dim
-    out_dim = len(set([int(d[1]) for d in dataset]))  # output dim
-    model = DeepMOI(in_dim, out_dim)
-    optimizer = torch.optim.Adam(
-        model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
-    dataset_train: object
+        dataset.append([torch.tensor(data[i], dtype=torch.float),
+                        torch.tensor(labels[i], dtype=torch.long)])
+
+    # in_dim, out_dim
+    dim_out = len(set(labels))
+    in_dim = data.shape[1]
+    model = DeepMOI(in_dim, dim_out)
+    optimizer = torch.optim.Adam(model.parameters(),
+                                 lr=args.lr, weight_decay=args.weight_decay)
     dataset_train, dataset_test = train_test_split(
         dataset, test_size=args.test_size, random_state=args.seed)
-    loader = DataLoader(dataset_train, batch_size=args.batch)
+    train_loader = DataLoader(dataset_train, batch_size=args.batch)
+    test_loader = DataLoader(dataset_test, batch_size=args.batch, drop_last=False)
 
-    with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
-        file.writelines("------Running DNN model------" + '\n')
-
-    # building model
     for epoch in range(args.epoch):
         # 1) training model
         model.train()
         loss_epoch = []
-        for _, sample in enumerate(loader):
-            X, Y = sample[0], sample[1]
-            out = model(X)
-            loss = nn.CrossEntropyLoss()(out, Y)
+        y_pred_probs, real_labels = [], []
+        for data, labels in train_loader:
+            out = model(data)
+            out = out.squeeze(-1)
+            # loss
+            loss = nn.CrossEntropyLoss()(out, labels)
             optimizer.zero_grad()
             loss.backward()
             optimizer.step()
             loss_epoch.append(loss.item())
+            # prediction
+            y_pred_prob = F.softmax(out).detach().tolist()
+            y_pred_probs.append(y_pred_prob)
+            real_labels.append(labels)
         loss_epoch = np.mean(loss_epoch)
+        y_pred_probs = np.concatenate(y_pred_probs)
+        real_labels = np.concatenate(real_labels)
+        acc, prec, f1, auc, recall = evaluate(y_pred_probs, real_labels)
+        log_train = 'Epoch {:2d} | Train Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
+            epoch, loss_epoch, acc, auc, f1, recall, prec)
+        print(log_train)
+        with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
+            file.writelines(log_train + '\n')
 
-        # 2) evaluation
         with torch.no_grad():
-            # evaluation for training dataset
-            acc, prec, f1, auc, recall = evaluation(model, dataset_train)
-            log_train = 'Epoch {:2d} | Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
-                epoch, loss_epoch, acc, auc, f1, recall, prec)
-            print(log_train)
+            # test metrics
+            loss_epoch = []
+            y_pred_probs, real_labels = [], []
+            for data, labels in test_loader:
+                out = model(data)
+                out = out.squeeze(-1)
+                # loss
+                loss = nn.CrossEntropyLoss()(out, labels)
+                optimizer.zero_grad()
+                loss_epoch.append(loss.item())
+                # predict labels
+                y_pred_prob = F.softmax(out).detach().tolist()
+                y_pred_probs.append(y_pred_prob)
+                real_labels.append(labels)
 
-            # evaluation for testing dataset
-            acc, prec, f1, auc, recall = evaluation(model, dataset_test)
-            log_test = 'Epoch {:2d} | Loss {:.10f} | Test_ACC  {:.3f} | Test_AUC  {:.3f} | Test_F1_score  {:.3f} | Test_Recall  {:.3f} | Test_Precision  {:.3f}\n'.format(
+            loss_epoch = np.mean(loss_epoch)
+            y_pred_probs = np.concatenate(y_pred_probs)
+            real_labels = np.concatenate(real_labels)
+            acc, prec, f1, auc, recall = evaluate(y_pred_probs, real_labels)
+            log_test = 'Epoch {:2d} | Test Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
                 epoch, loss_epoch, acc, auc, f1, recall, prec)
             print(log_test)
-
-            # to write log info
             with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
-                file.writelines(log_train + '\n')
                 file.writelines(log_test + '\n')
-
     with open(os.path.join(args.outdir, 'evaluation.txt'), 'a') as txt:
         if args.FSD:
             if args.clin_file:
@@ -148,31 +169,144 @@ def train(args, data, labels):
             else:
                 txt.writelines(f"DNN\tFSD_{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
         else:
-            txt.writelines(f"DNN\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            if args.clin_file:
+                txt.writelines(f"DNN\t{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            else:
+                txt.writelines(f"DNN\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+    txt.close()
+
+    file.close()
+    # to save model
+    torch.save(model, os.path.join(args.outdir, 'model.pt'))
+    return model, test_loader
+
+def train_net(args, data, chosen_omic_group, labels):
+    idx_rna = []
+    for i, v in enumerate(chosen_omic_group):
+        if v == 'rna':
+            idx_rna.append(i)
+
+    idx_dna = []
+    for i, v in enumerate(chosen_omic_group):
+        if v == 'cnv' or v == 'met':
+            idx_dna.append(i)
+
+    data_dna = data[:, idx_dna]
+    data_rna = data[:, idx_rna]
+    dataset = []
+    for i in range(len(labels)):
+        dataset.append([torch.tensor(data_dna[i], dtype=torch.float),
+                        torch.tensor(data_rna[i], dtype=torch.float),
+                        torch.tensor(labels[i], dtype=torch.long)])
+
+    # dim_dna, dim_rna, dim_out
+    dim_dna = data_dna.shape[1]
+    dim_rna = data_rna.shape[1]
+    dim_out = len(set(labels))
+    model = Net(dim_dna, dim_rna, dim_out)
+    optimizer = torch.optim.Adam(model.parameters(),
+                                 lr=args.lr,
+                                 weight_decay=args.weight_decay)
+    dataset_train, dataset_test = train_test_split(
+        dataset, test_size=args.test_size, random_state=args.seed)
+    train_loader = DataLoader(dataset_train, batch_size=args.batch)
+    test_loader = DataLoader(dataset_test, batch_size=args.batch, drop_last=False)
+
+    with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
+        file.writelines("------Running Net model------" + '\n')
+
+    for epoch in range(args.epoch):
+        # 1) training model
+        model.train()
+        loss_epoch = []
+        y_pred_probs, real_labels = [], []
+        for data_dna, data_rna, labels in train_loader:
+            out = model(data_dna, data_rna)
+            out = out.squeeze(-1)
+            # loss
+            loss = nn.CrossEntropyLoss()(out, labels)
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+            loss_epoch.append(loss.item())
+            # prediction
+            y_pred_prob = F.softmax(out).detach().tolist()
+            y_pred_probs.append(y_pred_prob)
+            real_labels.append(labels)
+        loss_epoch = np.mean(loss_epoch)
+        y_pred_probs = np.concatenate(y_pred_probs)
+        real_labels = np.concatenate(real_labels)
+        acc, prec, f1, auc, recall = evaluate(y_pred_probs, real_labels)
+        log_train = 'Epoch {:2d} | Train Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
+            epoch, loss_epoch, acc, auc, f1, recall, prec)
+        print(log_train)
+        with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
+            file.writelines(log_train + '\n')
+
+        with torch.no_grad():
+            # test metrics
+            loss_epoch = []
+            y_pred_probs, real_labels = [], []
+            for data_dna, data_rna, labels in test_loader:
+                out = model(data_dna, data_rna)
+                out = out.squeeze(-1)
+                # loss
+                loss = nn.CrossEntropyLoss()(out, labels)
+                optimizer.zero_grad()
+                loss_epoch.append(loss.item())
+                # predict labels
+                y_pred_prob = F.softmax(out).detach().tolist()
+                y_pred_probs.append(y_pred_prob)
+                real_labels.append(labels)
+
+            loss_epoch = np.mean(loss_epoch)
+            y_pred_probs = np.concatenate(y_pred_probs)
+            real_labels = np.concatenate(real_labels)
+            acc, prec, f1, auc, recall = evaluate(y_pred_probs, real_labels)
+            log_test = 'Epoch {:2d} | Test Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
+                epoch, loss_epoch, acc, auc, f1, recall, prec)
+            print(log_test)
+
+            # to write log info
+            with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
+                file.writelines(log_test + '\n')
+
+    with open(os.path.join(args.outdir, 'evaluation.txt'), 'a') as txt:
+        if args.FSD:
+            if args.clin_file:
+                txt.writelines(f"Net\tFSD_{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            else:
+                txt.writelines(f"Net\tFSD_{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+        else:
+            if args.clin_file:
+                txt.writelines(f"Net\t{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+            else:
+                txt.writelines(f"Net\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
     txt.close()
 
     file.close()
     # to save model
     torch.save(model, os.path.join(args.outdir, 'model.pt'))
 
-    # output
-    return model, dataset_test
+    return model, test_loader
 
-def evaluation(model, dataset):
-    """
-    To evaluate model performance for training dataset and testing dataset.
 
-    model: taining model
-    dataset: training dataset or testing dataset.
-    """
-    y_pred_probs, real_labels = [], []
-    for d in dataset:
-        out = model(d[0])
-        y_pred_prob = F.softmax(out).detach().tolist()
-        y_pred_probs.append(y_pred_prob)
-        real_labels.append(d[1].tolist())
-    acc, prec, f1, auc, recall = evaluate(pred_prob=np.array(y_pred_probs),
-                                          real_label=np.array(real_labels))
-    return acc, prec, f1, auc, recall
+
+# def evaluation(model, dataset):
+#     """
+#     To evaluate model performance for training dataset and testing dataset.
+#
+#     model: taining model
+#     dataset: training dataset or testing dataset.
+#     """
+#     y_pred_probs, real_labels = [], []
+#     for d in dataset:
+#         out = model(d[0])
+#         y_pred_prob = F.softmax(out).detach().tolist()
+#         y_pred_probs.append(y_pred_prob)
+#         real_labels.append(d[1].tolist())
+#     acc, prec, f1, auc, recall = evaluate(pred_prob=np.array(y_pred_probs),
+#                                           real_label=np.array(real_labels))
+#     return acc, prec, f1, auc, recall
 
 

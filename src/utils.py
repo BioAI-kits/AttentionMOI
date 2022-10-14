@@ -88,7 +88,7 @@ def init_log(args):
         file.writelines(head_line + '\n\n')
         if args.FSD:
             if args.clin_file:
-                file.writelines("-------Using FSD and clinical file, feature selection method {}, omic group {} clin, and model {}------------\n".format(args.method, args.omic_name,args.model))
+                file.writelines("-------Using FSD and clinical file, feature selection method {}, omic group {} clin, and model {}------------\n".format(args.method, args.omic_name, args.model))
             else:
                 file.writelines("-------Using FSD, feature selection method {}, omic group {}, and model {}------------\n".format(args.method, args.omic_name, args.model))
         else:
@@ -116,10 +116,10 @@ def evaluate(pred_prob, real_label, average="macro"):
     return acc, prec, f1, auc, recall
 
 
-# for explain
+# for explain dnn model
 def ig(args, model, dataset, feature_names, omic_group, target=1):
     # prepare input data
-    input_tensor_list = [d[0].unsqueeze(0) for d in dataset]
+    input_tensor_list = [data for data, labels in dataset]
     input_tensor = torch.cat(input_tensor_list, 0)
     input_tensor.requires_grad_()
 
@@ -143,14 +143,62 @@ def ig(args, model, dataset, feature_names, omic_group, target=1):
     # output
     if args.FSD:
         if args.clin_file:
-            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_FSD_{}_clin_target{}.csv'.format(args.method, target)), index=False)
+            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_FSD_{}_clin_DNN_{}_target{}.csv'.format(args.method, args.omic_name, target)), index=False)
         else:
-            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_FSD_{}_target{}.csv'.format(args.method, target)),index=False)
+            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_FSD_{}_DNN_{}_target{}.csv'.format(args.method, args.omic_name, target)),index=False)
     else:
         if args.clin_file:
-            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_{}_clin_target{}.csv'.format(args.method, target)), index=False)
+            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_{}_clin_DNN_{}_target{}.csv'.format(args.method, args.omic_name, target)), index=False)
         else:
-            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_{}_target{}.csv'.format(args.method, target)),index=False)
+            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_{}_DNN_{}_target{}.csv'.format(args.method, args.omic_name, target)),index=False)
 
     return df_imp
 
+ # for explain net model
+def ig_net(args, model, dataset, feature_names, omic_group, target=1):
+    # prepare input data
+    input_tensor_dna, input_tensor_rna = [], []
+    for data_dna, data_rna, labels in dataset:
+        input_tensor_dna.append(data_dna)
+        input_tensor_rna.append(data_rna)
+    input_tensor_dna = torch.cat(input_tensor_dna, 0).requires_grad_()
+    input_tensor_rna = torch.cat(input_tensor_rna, 0).requires_grad_()
+
+    # instantiation
+    ig = IntegratedGradients(model)
+
+    # calculating feature importance using IG
+    attr, _ = ig.attribute((input_tensor_dna, input_tensor_rna), return_convergence_delta=True, target=target)
+    feat_importance = []
+    for tensor in attr:
+        tensor = tensor.detach().numpy()
+        feat_importance.append(np.mean(tensor, axis=0))
+
+    # result
+    df_imp = pd.DataFrame({'Feature': feature_names,
+                           'Omic': omic_group,
+                           'Target': [target] * len(feature_names),
+                           'Importance_value': np.concatenate(feat_importance),
+                           'Importance_value_abs':  abs(np.concatenate(feat_importance))
+                           })
+    df_imp = df_imp.sort_values('Importance_value_abs', ascending=False)
+
+    # output
+    if args.FSD:
+        if args.clin_file:
+            df_imp.to_csv(
+                os.path.join(args.outdir, 'feature_importance_FSD_{}_clin_Net_{}_target{}.csv'.format(args.method, args.omic_name, target)),
+                index=False)
+        else:
+            df_imp.to_csv(
+                os.path.join(args.outdir, 'feature_importance_FSD_{}_Net_{}_target{}.csv'.format(args.method, args.omic_name, target)),
+                index=False)
+    else:
+        if args.clin_file:
+            df_imp.to_csv(
+                os.path.join(args.outdir, 'feature_importance_{}_clin_Net_{}_target{}.csv'.format(args.method, args.omic_name, target)),
+                index=False)
+        else:
+            df_imp.to_csv(os.path.join(args.outdir, 'feature_importance_{}_Net_{}_target{}.csv'.format(args.method, args.omic_name, target)),
+                          index=False)
+    return df_imp
