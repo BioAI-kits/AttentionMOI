@@ -107,7 +107,7 @@ def train(args, data, labels):
     dataset_train, dataset_test = train_test_split(
         dataset, test_size=args.test_size, random_state=args.seed)
     train_loader = DataLoader(dataset_train, batch_size=args.batch)
-    test_loader = DataLoader(dataset_test, batch_size=args.batch, drop_last=False)
+    test_loader = DataLoader(dataset_test, batch_size=args.batch, shuffle=True, drop_last=True)
 
     for epoch in range(args.epoch):
         # 1) training model
@@ -210,7 +210,7 @@ def train_net(args, data, chosen_omic_group, labels):
     dataset_train, dataset_test = train_test_split(
         dataset, test_size=args.test_size, random_state=args.seed)
     train_loader = DataLoader(dataset_train, batch_size=args.batch)
-    test_loader = DataLoader(dataset_test, batch_size=args.batch, drop_last=False)
+    test_loader = DataLoader(dataset_test, batch_size=args.batch, shuffle=True, drop_last=True)
 
     with open(os.path.join(args.outdir, 'log.txt'), 'a') as file:
         file.writelines("------Running Net model------" + '\n')
