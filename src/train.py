@@ -10,6 +10,7 @@ from sklearn.inspection import permutation_importance
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader
 from xgboost import XGBClassifier
+import joblib
 from .module import DeepMOI, Net
 from .utils import evaluate
 
@@ -28,14 +29,47 @@ def ml_models(args, data, chosen_feat_name, chosen_omic_group, labels, model_nam
     if args.model == "RF" or model_name == "RF":
         model = RandomForestClassifier(random_state=args.seed)
         model.fit(X_train, y_train)
+        if args.FSD:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_RF_FSD_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_RF_FSD_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+        else:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_RF_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_RF_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
 
     elif args.model == "XGboost" or model_name == "XGboost":
         model = XGBClassifier(random_state=args.seed)
         model.fit(X_train, y_train)
+        if args.FSD:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_XGboost_FSD_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_XGboost_FSD_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+        else:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_XGboost_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_XGboost_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
 
     elif args.model == "svm" or model_name == "svm":
         model = svm.SVC(random_state=args.seed, probability=True)
         model.fit(X_train, y_train)
+        if args.FSD:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_svm_FSD_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_svm_FSD_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+        else:
+            if args.clin_file:
+                joblib.dump(model, os.path.join(args.outdir,'model_svm_{}_{}_clin_{}.joblib'.format(args.method, args.omic_name, args.seed)))
+
+            else:
+                joblib.dump(model, os.path.join(args.outdir,'model_svm_{}_{}_{}.joblib'.format(args.method, args.omic_name, args.seed)))
 
     y_pred_train = model.predict_proba(X_train)
     y_pred_test = model.predict_proba(X_test)
@@ -166,18 +200,27 @@ def train(args, data, labels):
         if args.FSD:
             if args.clin_file:
                 txt.writelines(f"DNN\tFSD_{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_DNN_FSD_{}_{}_clin_{}.pt'.format(args.method, args.omic_name, args.seed)))
             else:
                 txt.writelines(f"DNN\tFSD_{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_DNN_FSD_{}_{}_{}.pt'.format(args.method, args.omic_name, args.seed)))
         else:
             if args.clin_file:
                 txt.writelines(f"DNN\t{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_DNN_{}_{}_clin_{}.pt'.format(args.method, args.omic_name, args.seed)))
             else:
                 txt.writelines(f"DNN\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_DNN_{}_{}_{}.pt'.format(args.method, args.omic_name, args.seed)))
     txt.close()
 
-    file.close()
-    # to save model
-    torch.save(model, os.path.join(args.outdir, 'model.pt'))
     return model, test_loader
 
 def train_net(args, data, chosen_omic_group, labels):
@@ -275,18 +318,27 @@ def train_net(args, data, chosen_omic_group, labels):
         if args.FSD:
             if args.clin_file:
                 txt.writelines(f"Net\tFSD_{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_Net_FSD_{}_{}_clin_{}.pt'.format(args.method, args.omic_name, args.seed)))
             else:
                 txt.writelines(f"Net\tFSD_{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_Net_FSD_{}_{}_{}.pt'.format(args.method, args.omic_name, args.seed)))
         else:
             if args.clin_file:
                 txt.writelines(f"Net\t{args.method}\t{args.omic_name} clin\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_Net_{}_{}_clin_{}.pt'.format(args.method, args.omic_name, args.seed)))
             else:
                 txt.writelines(f"Net\t{args.method}\t{args.omic_name}\t{acc}\t{prec}\t{f1}\t{auc}\t{recall}\n")
+                # to save model
+                torch.save(model, os.path.join(args.outdir,
+                                               'model_Net_{}_{}_{}.pt'.format(args.method, args.omic_name, args.seed)))
     txt.close()
 
-    file.close()
-    # to save model
-    torch.save(model, os.path.join(args.outdir, 'model.pt'))
 
     return model, test_loader
 

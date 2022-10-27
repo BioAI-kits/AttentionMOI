@@ -40,7 +40,6 @@ def read_clin(args):
         df = df.fillna(0)
     return df
 
-
 def process(df_omics, df_label, df_clin):
     # extract patient id
     patients = [df_tmp.index.to_list() for df_tmp in df_omics]

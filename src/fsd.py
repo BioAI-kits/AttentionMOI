@@ -1,4 +1,6 @@
 import sys
+import os
+import pandas as pd
 import numpy as np
 from scipy import stats
 from sklearn.model_selection import train_test_split
@@ -97,15 +99,27 @@ def feature_selection_distribution(args):
             if args.method is not None:
                 df_omic = feature_selection(args=args, df_omic=df_omic, label=labels)
 
+            # preprocessing result
+            chosen_omics.append(df_omic.values)
+            chosen_feat_name += df_omic.columns.to_list()  # Filtered feature name
+            chosen_omic_group += [args.omic_name[omic_num]] * len(
+                df_omic.columns.to_list())  # The omics name corresponding to the filtered feature
+
+            feat = pd.DataFrame({"feat_name": chosen_feat_name,
+                                 "omic_group": chosen_omic_group})
+            feat.to_csv(os.path.join(args.outdir, 'features_FSD_{}_{}.csv'.format(args.method, args.seed)))
         # No FSD to mitigate noise
         else:
             df_omic = feature_selection(args=args, df_omic=df_omic, label=labels)
+            # preprocessing result
+            chosen_omics.append(df_omic.values)
+            chosen_feat_name += df_omic.columns.to_list()  # Filtered feature name
+            chosen_omic_group += [args.omic_name[omic_num]] * len(
+                df_omic.columns.to_list())  # The omics name corresponding to the filtered feature
 
-        # preprocessing result
-        chosen_omics.append(df_omic.values)
-        chosen_feat_name += df_omic.columns.to_list()  # Filtered feature name
-        chosen_omic_group += [args.omic_name[omic_num]] * len(
-            df_omic.columns.to_list())  # The omics name corresponding to the filtered feature
+            feat = pd.DataFrame({"feat_name": chosen_feat_name,
+                                 "omic_group": chosen_omic_group})
+            feat.to_csv(os.path.join(args.outdir, 'features_{}_{}.csv'.format(args.method, args.seed)))
 
     # 4. add clinical feature
     if df_clin is not None:
@@ -148,10 +162,10 @@ def feature_selection(args, df_omic, label):
         df_omic = rfe(args=args, df_omic=df_omic, label=label)
         print("Using RFE for feature selection, {} features were selected for model.".format(df_omic.shape[1]))
         return df_omic
-    elif method == "LASSO":
-        df_omic = lasso(df_omic=df_omic, label=label)
-        print("Using LASSO for feature selection, {} features were selected for model.".format(df_omic.shape[1]))
-        return df_omic
+    # elif method == "LASSO":
+    #     df_omic = lasso(df_omic=df_omic, label=label)
+    #     print("Using LASSO for feature selection, {} features were selected for model.".format(df_omic.shape[1]))
+    #     return df_omic
     elif method == "PCA":
         df_omic, feature_imp = pca(args=args, df_omic=df_omic)
         print("Using PCA for feature selection, {} components were used for model.".format(args.num_pc))
