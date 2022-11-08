@@ -306,7 +306,7 @@ def train_net(args, data, chosen_omic_group, labels):
             y_pred_probs = np.concatenate(y_pred_probs)
             real_labels = np.concatenate(real_labels)
             acc, prec, f1, auc, recall = evaluate(y_pred_probs, real_labels)
-            log_test = 'Epoch {:2d} | Test Loss {:.10f} | Train_ACC {:.3f} | Train_AUC {:.3f} | Train_F1_score {:.3f} | Train_Recall {:.3f} | Train_Precision {:.3f}'.format(
+            log_test = 'Epoch {:2d} | Test Loss {:.10f} | Test_ACC {:.3f} | Test_AUC {:.3f} | Test_F1_score {:.3f} | Test_Recall {:.3f} | Test_Precision {:.3f}'.format(
                 epoch, loss_epoch, acc, auc, f1, recall, prec)
             print(log_test)
 
