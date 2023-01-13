@@ -6,8 +6,9 @@ The availability of high-throughput sequencing data create opportunities to comp
 
 ---
 
+<div align=center>
 <img src="https://github.com/BioAI-kits/AttentionMOI/blob/master/img/Figure1.png" />
-
+</div>
 
 
 
