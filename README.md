@@ -6,7 +6,7 @@ The availability of high-throughput sequencing data create opportunities to comp
 
 ---
 
-
+[fig](img/Figure1-overview.jpg)
 
 
 
