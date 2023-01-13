@@ -1,5 +1,4 @@
 captum==0.4.1
-dgl==0.8.2
 matplotlib==3.5.0
 mygene==3.2.2
 numpy @ file:///tmp/build/80754af9/numpy_and_numpy_base_1634095647912/work
