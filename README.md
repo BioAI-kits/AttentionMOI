@@ -27,24 +27,24 @@ The program performs feature selection and model building through deepmoi.py fil
 Examples:
 
 ```
-python deepmoi.py -f ./dataset/GBM/GBM_exp.csv.gz \
-                  -f ./dataset/GBM/GBM_met.csv.gz \
-                  -f ./dataset/GBM/GBM_logRatio.csv.gz \
-                  -l ./dataset/GBM/GBM_label.csv \
-                  -n rna \
-                  -n met \
-                  -n cnv \
-                  -b 16 \
-                  --FSD \
-                  -m all \
-                  --threshold 0.2 \
-                  -o ./GBM_output
+python moi.py -f ./dataset/GBM/GBM_exp.csv.gz \
+              -f ./dataset/GBM/GBM_met.csv.gz \
+              -f ./dataset/GBM/GBM_logRatio.csv.gz \
+              -l ./dataset/GBM/GBM_label.csv \
+              -n rna \
+              -n met \
+              -n cnv \
+              -b 16 \
+              --FSD \
+              -m all \
+              --threshold 0.2 \
+              -o ./GBM_output
 ```
 
 More detailed parameter descriptions can be obtained in the following ways:
 
 ```
-python deepmoi.py -h
+python moi.py -h
 ```
 
 
