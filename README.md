@@ -1,6 +1,6 @@
 ## A Denoised Multi-omics Integration Framework for Cancer Subtype Classification and Survival Prediction
 
-Jiali Panga, Bilin Lianga, Ruifeng Dingb, Qiujuan Yana, Ruiyao Chena, Jie Xu* 
+Jiali Pang, Bilin Liang, Ruifeng Ding, Qiujuan Yan, Ruiyao Chen, Jie Xu* 
 
 ### Introduction of project
 
