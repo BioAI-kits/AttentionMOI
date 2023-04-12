@@ -153,7 +153,7 @@ w | weight_decay
 
 Example (Data can be downloaded from https://github.com/BioAI-kits/AttentionMOI ): 
 ```
-moi -f GBM_exp.csv.gz -f GBM_met.csv.gz -f GBM_logRatio.csv.gz -n rna -n met -n cnv -l GBM_label.csv --FSD -m Net -o GBM_Result \n
+moi -f GBM_exp.csv.gz -f GBM_met.csv.gz -f GBM_logRatio.csv.gz -n rna -n met -n cnv -l GBM_label.csv --FSD -m Net -o GBM_Result
 ```
 
 ---
