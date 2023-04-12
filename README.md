@@ -4,14 +4,13 @@
 
 ### What we do?
 
-- We integrated commonly used omics feature selection methods, such as ANOVA, RFE, LASSO, PCA.
+- We developed a new feature selection method, Feature Selection with Distribution (FSD), for multi-omics data denosing and feature selection.
 
-- We also developed a new method for omics feature selection, FSD.
+- We developed a biologically informed deep learning algorithm for multi-omics integration to predict cancer subtypes and patient survival. 
 
-- we integrated common machine/deep learning algorithms used to build single/multi-omics model, such as DNN, Random Forest, XGboost, SVM, Mogonet$^1$, Moanna$^2$, which are two good multi-omics integration algorithms recently.
+- Commonly used feature selection methods, ANOVA, RFE, LASSO, PCA, were incorporated for comparison.
 
-- We also developed a new deep learning algorithm for multi-omics integration.
-
+- Several machine learning and deep learning algorithms, including Random Forest, XGboost, SVM, DNN, MOGONET$^1$, Moanna$^2$, were integrated for multi-omics integration for cpmparison. MOGONET used graph convolutional networks for multi-omics integration, and Moanna is a Autoencoder-based neural network.
 
 ---
 
@@ -19,7 +18,7 @@
 <img src="https://github.com/BioAI-kits/AttentionMOI/blob/master/img/Figure1.png" />
 </div>
 
-**Introduction of project**. The availability of high-throughput sequencing data create opportunities to comprehensively understand human diseases as well as challenges to train machine learning models using such high dimensions of data. Here, we propose a distribution based feature denosing algorithm, Feature Selection with Distribution (FSD), for multi-omics denosing to reduce dimensions of features and a multi-omics integration framework, Attention Multi-Omics Integration (AttentionMOI), which is inspired by the central dogma of biology. We demonstrated that FSD improved model performance either using single omics data or multi-omics data in 13 TCGA cancers for survival prediction and kidney cancer subtype identification. And our integration framework outperformed traditional artificial intellegnce models under high dimensions of features. Furthermore, FSD identisied features were related to cancer prognosis and could be considered as biomarkers. 
+**Introduction of project**. The availability of high-throughput sequencing data create opportunities to comprehensively understand human diseases as well as challenges to train machine learning models using such high dimensions of data. Here, we propose a denoised multi-omics integration framework for cancer subtype classification and survival prediction. Firstly, a distribution based feature denosing algorithm, Feature Selection with Distribution (FSD), were designed to reduce dimensions of omics features. Secondly, we introduced a a multi-omics integration framework, Attention Multi-Omics Integration (AttentionMOI), which is inspired by the central dogma of biology. We demonstrated that FSD improved model performance either using single omics data or multi-omics data in 13 TCGA cancers for survival prediction and kidney cancer subtype identification. And our integration framework outperformed traditional artificial intellegnce models current multi-omics integration algorithms under high dimensions of features. Furthermore, FSD identisied features were related to cancer prognosis and could be considered as biomarkers. 
 
 ---
 
@@ -97,7 +96,7 @@ FSD
 
 i | iteration
 
-> OPTIONAL: The number of FSD iterations (integer), default=10.
+> OPTIONAL: The number of FSD iterations (integer), default=10
 
 s | seed
 
@@ -128,7 +127,7 @@ e | epoch
 
 r | lr
 
-> OPTIONAL: Learning rate for model training(float), default=0.0001.
+> OPTIONAL: Learning rate for model training(float), default=0.0001
 
 w | weight_decay
 
@@ -140,7 +139,7 @@ w | weight_decay
 
 Example (Data can be downloaded from https://github.com/BioAI-kits/AttentionMOI ): 
 ```
-moi -f GBM_exp.csv.gz -f GBM_met.csv.gz -f GBM_logRatio.csv.gz -n rna -n met -n cnv -l GBM_label.csv --FSD -m all -o GBM_Result \n
+moi -f GBM_exp.csv.gz -f GBM_met.csv.gz -f GBM_logRatio.csv.gz -n rna -n met -n cnv -l GBM_label.csv --FSD -m Net -o GBM_Result \n
 ```
 
 ---
