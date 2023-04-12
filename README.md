@@ -10,7 +10,7 @@
 
 - Commonly used feature selection methods, ANOVA, RFE, LASSO, PCA, were incorporated for comparison.
 
-- Several machine learning and deep learning algorithms, including Random Forest, XGboost, SVM, DNN, MOGONET$^1$, Moanna$^2$, were integrated for multi-omics integration for cpmparison. MOGONET used graph convolutional networks for multi-omics integration, and Moanna is a Autoencoder-based neural network.
+- Several machine learning and deep learning algorithms, including Random Forest, XGboost, SVM, DNN, MOGONET<sup>1</sup>, Moanna<sup>2</sup>, were integrated for multi-omics integration for cpmparison. MOGONET used graph convolutional networks for multi-omics integration, and Moanna is a Autoencoder-based neural network.
 
 ---
 
