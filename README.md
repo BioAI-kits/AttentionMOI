@@ -62,8 +62,11 @@ f | omic_file
 > REQUIRED: File path for omics files (should be matrix)
 
 **NOTE:The file must be in csv format, such as rna.csv. Of course, it can be compressed with gz, such as rna.csv.gz.**. Example: The first line is the header, patient_id and gene (features) names.
+
 >  patient_id,A1BG,A1CF,A2BP1,A2LD1,....
+>
 >  TCGA.KL.8323,3.3491,0.0,0.0,5.8939,....
+>
 >  TCGA.KL.8324,2.922,0.5557,0.5557,6.4226,....
 
 n | omic_name
@@ -75,11 +78,17 @@ l | label_file
 > REQUIRED: File path for label file
 
 **NOTE:The file must be in csv format, such as label.csv. Of course, it can be compressed with gz, such as label.csv.gz.**. Example: The first line is the header, patient_id and label represent the sample name and sample classification label respectively. 
+
 > patient_id,label
+>
 > TCGA.KL.8328,0
+>
 > TCGA.KL.8339,0
+>
 > TCGA.KM.8439,1
+>
 > TCGA.KM.8441,1
+>
 > TCGA.KM.8442,1
 
 
