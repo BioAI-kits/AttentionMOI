@@ -1,0 +1,2 @@
+ERStatus	Positive	0	ER+
+ERStatus	Negative	1	ER-

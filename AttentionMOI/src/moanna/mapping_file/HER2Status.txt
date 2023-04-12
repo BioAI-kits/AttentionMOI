@@ -1,0 +1,2 @@
+HER2Status	Positive	0	HER2+
+HER2Status	Negative	1	HER2-

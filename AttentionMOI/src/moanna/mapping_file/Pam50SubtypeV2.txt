@@ -1,0 +1,7 @@
+Pam50Subtype	Basal	0
+Pam50Subtype	Her2	1
+Pam50Subtype	LumA	2
+Pam50Subtype	LumB	3
+Pam50Subtype	Normal	4
+Pam50Subtype	claudin-low	5
+Pam50Subtype	NC	6

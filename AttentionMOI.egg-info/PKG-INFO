@@ -1,0 +1,14 @@
+Metadata-Version: 2.1
+Name: AttentionMOI
+Version: 0.1.1
+Summary: A Denoised Multi-omics Integration Framework for Cancer Subtype Classification and Survival Prediction.
+Home-page: https://github.com/BioAI-kits/AttentionMOI
+Author: Billy
+Author-email: liangbilin0324@163.com
+License: Apache License 2.0
+Platform: UNKNOWN
+Requires-Python: >=3.9.*
+License-File: LICENSE
+
+UNKNOWN
+

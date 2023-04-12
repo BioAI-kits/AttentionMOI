@@ -1,0 +1,4 @@
+Pam50Subtype	Basal	0	Basal
+Pam50Subtype	Her2	1	Her2
+Pam50Subtype	LumA	2	LumA
+Pam50Subtype	LumB	3	LumB

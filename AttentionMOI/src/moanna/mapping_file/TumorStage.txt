@@ -1,0 +1,5 @@
+TumorStage	0	0
+TumorStage	1	1
+TumorStage	2	2
+TumorStage	3	3
+TumorStage	4	4

@@ -1,0 +1,5 @@
+Pam50Subtype	Basal	0
+Pam50Subtype	Her2	0
+Pam50Subtype	LumA	1
+Pam50Subtype	LumB	2
+Pam50Subtype	claudin-low	0
