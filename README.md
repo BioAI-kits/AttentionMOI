@@ -1,3 +1,5 @@
+
+
 ## A Denoised Multi-omics Integration Framework for Cancer Subtype Classification and Survival Prediction
 
 ---
@@ -136,6 +138,8 @@ m | model
 
 > OPTIONAL: Model names, choosing from DNN, Net (Net for AttentionMOI), RF, XGboost, svm, mogonet, moanna, default=DNN.
 
+**NOTE: Single omic data cannot be used to construct the AttentionMOI (Net) model.**
+
 t | test_size
 
 > OPTIONAL: Testing dataset proportion when split train test dataset (float), default=0.3 (30 percent data for testing)
@@ -177,6 +181,3 @@ moi -f GBM_exp.csv.gz -f GBM_met.csv.gz -f GBM_logRatio.csv.gz -n rna -n met -n 
 ---
 
 All rights reserved.
-
-
-
